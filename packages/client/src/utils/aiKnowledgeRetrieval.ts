@@ -1,5 +1,6 @@
 import type { AIKnowledgeSnippet } from "../store/modal/aiAssistant";
 import type { KnowledgeGraphData, KnowledgeNote } from "../components/types";
+import { normalizeKeyword } from "./keywordExtraction";
 
 export interface AIKnowledgeRetrievalOptions {
   currentFilePath?: string | null;
@@ -8,6 +9,8 @@ export interface AIKnowledgeRetrievalOptions {
   graphData?: KnowledgeGraphData | null;
   includeGraphNeighbors?: boolean;
   graphNeighborBoost?: number;
+  includeKeywords?: boolean;
+  keywordBoost?: number;
 }
 
 const COMMON_CHINESE_WORDS = [
@@ -64,22 +67,28 @@ export const tokenizeForKnowledgeSearch = (input: string): string[] => {
     .slice(0, 40);
 };
 
-const buildKnowledgeSnippet = (content: string, tokens: string[]): string => {
+const buildKnowledgeSnippet = (
+  content: string,
+  tokens: string[],
+  priorityTokens: string[] = [],
+): string => {
   const lines = content
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
   if (!lines.length) return content.slice(0, 500);
 
-  const matchedIndex = lines.findIndex((line) => {
-    const lowerLine = line.toLowerCase();
-    return tokens.some((token) => lowerLine.includes(token));
-  });
+  const findMatchedIndex = (matchTokens: string[]): number =>
+    lines.findIndex((line) => {
+      const lowerLine = line.toLowerCase();
+      return matchTokens.some((token) => lowerLine.includes(token));
+    });
+  const priorityIndex = findMatchedIndex(priorityTokens);
+  const matchedIndex =
+    priorityIndex >= 0 ? priorityIndex : findMatchedIndex(tokens);
   const start = Math.max(0, matchedIndex >= 0 ? matchedIndex - 1 : 0);
-  return lines
-    .slice(start, start + 4)
-    .join("\n")
-    .slice(0, 500);
+  const snippet = lines.slice(start, start + 4).join("\n");
+  return snippet.slice(0, 500);
 };
 
 const countTokenHits = (text: string, tokens: string[]): number =>
@@ -153,6 +162,8 @@ export const retrieveAIKnowledgeSnippets = (
     ? buildGraphNeighborBoosts(options.graphData)
     : new Map<string, number>();
   const graphNeighborBoost = options.graphNeighborBoost ?? 2;
+  const includeKeywords = options.includeKeywords ?? true;
+  const keywordBoost = options.keywordBoost ?? 7;
 
   return notes
     .map((note) => {
@@ -160,6 +171,30 @@ export const retrieveAIKnowledgeSnippets = (
       const relativePath = note.relativePath.toLowerCase();
       const fileName = relativePath.split("/").pop() || relativePath;
       const content = note.content.toLowerCase();
+      const keywordValues = includeKeywords
+        ? (note.keywords || [])
+            .filter(
+              (keyword) =>
+                keyword.status !== "ignored" && keyword.status !== "candidate",
+            )
+            .map((keyword) =>
+              normalizeKeyword(keyword.normalized || keyword.text),
+            )
+            .filter(Boolean)
+        : [];
+      const tagValues = includeKeywords
+        ? (note.tags || []).map(normalizeKeyword).filter(Boolean)
+        : [];
+      const aliasValues = includeKeywords
+        ? (note.aliases || []).map(normalizeKeyword).filter(Boolean)
+        : [];
+      const normalizedTokens = tokens.map(normalizeKeyword).filter(Boolean);
+      const keywordHits = countTokenHits(
+        keywordValues.join(" "),
+        normalizedTokens,
+      );
+      const tagHits = countTokenHits(tagValues.join(" "), normalizedTokens);
+      const aliasHits = countTokenHits(aliasValues.join(" "), normalizedTokens);
       const titleHits = countTokenHits(title, tokens);
       const fileNameHits = countTokenHits(fileName, tokens);
       const pathHits = countTokenHits(relativePath, tokens);
@@ -192,14 +227,22 @@ export const retrieveAIKnowledgeSnippets = (
         titleHits * 8 +
         fileNameHits * 7 +
         pathHits * 3 +
-        contentHits;
+        contentHits +
+        keywordHits * keywordBoost +
+        tagHits * 6 +
+        aliasHits * 5;
+      const priorityTokens = normalizedTokens.filter((token) =>
+        [...keywordValues, ...tagValues, ...aliasValues].some((value) =>
+          value.includes(token),
+        ),
+      );
 
       return {
         score,
         snippet: {
           title: note.title,
           path: note.relativePath,
-          content: buildKnowledgeSnippet(note.content, tokens),
+          content: buildKnowledgeSnippet(note.content, tokens, priorityTokens),
         },
       };
     })

@@ -1,12 +1,14 @@
 import { defineStore } from "pinia";
 import type {
   KnowledgeGraphData,
+  KnowledgeNote,
   KnowledgeVault,
 } from "../../components/types";
 import type { KnowledgeFileSnapshot } from "../../utils/knowledgeGraph";
 import { extractFileName } from "../../components/fileUtils";
 import {
   indexKnowledgeVault,
+  indexKnowledgeVaultIncremental,
   mergeKnowledgeGraphData,
 } from "../../utils/knowledgeGraph";
 
@@ -19,6 +21,8 @@ interface KnowledgeGraphState {
   error: string | null;
   lastIndexedAt: number | null;
   fileSnapshots: KnowledgeFileSnapshot[];
+  fileSnapshotsByVault: Record<string, KnowledgeFileSnapshot[]>;
+  notesByVault: Record<string, KnowledgeNote[]>;
   graphByVault: Record<string, KnowledgeGraphData>;
   scanWarnings: string[];
 }
@@ -135,6 +139,8 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
     error: null,
     lastIndexedAt: loadLastIndexedAt(),
     fileSnapshots: [],
+    fileSnapshotsByVault: {},
+    notesByVault: {},
     graphByVault: {},
     scanWarnings: [],
   }),
@@ -198,9 +204,12 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
           )?.lastIndexedAt
         : undefined;
       this.vaultPath = path;
-      this.graphData = null;
-      this.fileSnapshots = [];
-      this.graphByVault = {};
+      this.graphData = path
+        ? this.graphByVault[normalizePath(path)] || null
+        : null;
+      this.fileSnapshots = path
+        ? this.fileSnapshotsByVault[normalizePath(path)] || []
+        : [];
       this.scanWarnings = [];
       this.error = null;
       this.lastIndexedAt = previousIndexedAt ?? null;
@@ -235,10 +244,20 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
               },
             ];
         const results = await Promise.allSettled(
-          vaultsToIndex.map(async (vault) => ({
-            vaultPath: vault.path,
-            graph: await indexKnowledgeVault(vault.path),
-          })),
+          vaultsToIndex.map(async (vault) => {
+            const key = normalizePath(vault.path);
+            const previousGraph = this.graphByVault[key];
+            const previousNotes = this.notesByVault[key];
+            const previousFiles = this.fileSnapshotsByVault[key];
+            const graph =
+              previousGraph && previousNotes && previousFiles
+                ? await indexKnowledgeVaultIncremental(vault.path, {
+                    previousNotes,
+                    previousFiles,
+                  })
+                : await indexKnowledgeVault(vault.path);
+            return { vaultPath: vault.path, graph };
+          }),
         );
         const successfulGraphs = results.flatMap((result) =>
           result.status === "fulfilled" ? [result.value] : [],
@@ -258,17 +277,22 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
           failedFiles: graphData.indexStats!.failedFiles + warnings.length,
         };
         this.graphData = graphData;
-        this.graphByVault = Object.fromEntries(
-          successfulGraphs.map(({ vaultPath, graph }) => [vaultPath, graph]),
-        );
+        successfulGraphs.forEach(({ vaultPath, graph }) => {
+          const key = normalizePath(vaultPath);
+          const snapshots = (graph.notes || []).map((note) => ({
+            path: note.path,
+            relativePath: note.relativePath,
+            size: note.size || 0,
+            mtime: note.mtime ?? null,
+          }));
+          this.graphByVault[key] = graph;
+          this.notesByVault[key] = graph.notes || [];
+          this.fileSnapshotsByVault[key] = snapshots;
+        });
+        const currentKey = normalizePath(this.vaultPath);
+        this.fileSnapshots = this.fileSnapshotsByVault[currentKey] || [];
         this.scanWarnings = graphData.indexStats.warnings;
         this.lastIndexedAt = graphData.indexedAt;
-        this.fileSnapshots = (graphData.notes || []).map((note) => ({
-          path: note.path,
-          relativePath: note.relativePath,
-          size: note.size || 0,
-          mtime: note.mtime ?? null,
-        }));
         successfulGraphs.forEach(({ vaultPath, graph }) =>
           this.upsertKnowledgeBase(vaultPath, graph.indexedAt),
         );
@@ -315,6 +339,8 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
       this.vaultPath = null;
       this.graphData = null;
       this.fileSnapshots = [];
+      this.fileSnapshotsByVault = {};
+      this.notesByVault = {};
       this.graphByVault = {};
       this.scanWarnings = [];
       this.error = null;

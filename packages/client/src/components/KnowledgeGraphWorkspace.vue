@@ -286,6 +286,7 @@ const nodeTypeLabel = computed(() => {
     note: "文档",
     heading: "标题",
     tag: "标签",
+    keyword: "关键词",
     missing: "缺失节点",
   };
   return selectedNode.value

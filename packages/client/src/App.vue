@@ -12,9 +12,14 @@ import {
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
-import { useFileStore, useKnowledgeGraphStore } from "./store";
+import {
+  useAIAssistantStore,
+  useFileStore,
+  useKnowledgeGraphStore,
+} from "./store";
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import SidePanelManager from "./components/SidePanelManager.vue";
+import KeywordPanel from "./components/KeywordPanel.vue";
 import Dashboard from "./components/Dashboard.vue";
 import AIAssistantPage from "./components/AIAssistantPage.vue";
 import KnowledgeGraphWorkspace from "./components/KnowledgeGraphWorkspace.vue";
@@ -22,7 +27,13 @@ import ToastContainer from "./components/ui/ToastContainer.vue";
 import UnsavedChangesDialog, {
   type UnsavedDialogResult,
 } from "./components/ui/UnsavedChangesDialog.vue";
-import type { FileOperationResult } from "./components/types";
+import type { FileOperationResult, KnowledgeKeyword } from "./components/types";
+import {
+  parseFrontmatterKeywords,
+  writeFrontmatterKeywords,
+  parseFrontmatterTags,
+  writeFrontmatterTags,
+} from "./utils/keywordExtraction";
 import {
   useAppEvents,
   type OpenFileFromSidebarEvent,
@@ -30,10 +41,12 @@ import {
 import { notifyError, notifySuccess } from "./utils/notifications";
 import { MESSAGES, DIALOGS } from "./constants/i18n";
 import { WINDOW_EVENTS } from "./constants/events";
+import { registerLocalKeywordModel } from "./utils/registerLocalKeywordModel";
 
 // 响应式数据
 let workgaga: ReturnType<typeof cherryInstance> | null = null;
 const fileStore = useFileStore();
+const aiAssistantStore = useAIAssistantStore();
 const knowledgeGraphStore = useKnowledgeGraphStore();
 const appWindow =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
@@ -47,6 +60,65 @@ let knowledgeGraphRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 const activeMainView = ref<"editor" | "dashboard" | "ai" | "knowledgeGraph">(
   "dashboard",
 );
+const currentMarkdown = ref("");
+const documentKeywords = ref<KnowledgeKeyword[]>([]);
+const documentTags = ref<string[]>([]);
+const ignoredKeywords = ref<string[]>([]);
+const metadataPanelVisible = ref(true);
+const metadataPanelStorageKey = "workgaga:metadata-panel-visible";
+
+try {
+  const storedVisible = localStorage.getItem(metadataPanelStorageKey);
+  const legacyCollapsed = localStorage.getItem(
+    "workgaga:keyword-panel-collapsed",
+  );
+  if (storedVisible !== null) {
+    metadataPanelVisible.value = storedVisible !== "false";
+  } else if (legacyCollapsed === "true") {
+    metadataPanelVisible.value = false;
+  }
+} catch {
+  metadataPanelVisible.value = true;
+}
+
+const setMetadataPanelVisible = (visible: boolean): void => {
+  metadataPanelVisible.value = visible;
+  try {
+    localStorage.setItem(metadataPanelStorageKey, String(visible));
+  } catch {
+    // localStorage may be unavailable in restricted environments.
+  }
+};
+
+const toggleMetadataPanel = (): void => {
+  setMetadataPanelVisible(!metadataPanelVisible.value);
+};
+
+const setCurrentMarkdown = (markdown: string): void => {
+  currentMarkdown.value = markdown;
+  documentKeywords.value = parseFrontmatterKeywords(markdown);
+  documentTags.value = parseFrontmatterTags(markdown);
+};
+
+const updateDocumentKeywords = (keywords: KnowledgeKeyword[]): void => {
+  documentKeywords.value = keywords;
+  const baseMarkdown = workgaga?.getMarkdown() ?? currentMarkdown.value;
+  currentMarkdown.value = writeFrontmatterKeywords(baseMarkdown, keywords);
+  if (workgaga && workgaga.getMarkdown() !== currentMarkdown.value) {
+    workgaga.setMarkdown(currentMarkdown.value);
+  }
+  hasUnsavedChanges = true;
+};
+
+const updateDocumentTags = (tags: string[]): void => {
+  documentTags.value = tags;
+  const baseMarkdown = workgaga?.getMarkdown() ?? currentMarkdown.value;
+  currentMarkdown.value = writeFrontmatterTags(baseMarkdown, tags);
+  if (workgaga && workgaga.getMarkdown() !== currentMarkdown.value) {
+    workgaga.setMarkdown(currentMarkdown.value);
+  }
+  hasUnsavedChanges = true;
+};
 
 const ensureEditorReady = async (
   show: boolean = true,
@@ -287,6 +359,7 @@ const createNewDocumentInKnowledgeBase = async (
   hasUnsavedChanges = false;
   const editor = await showEditorView();
   editor.setMarkdown("");
+  setCurrentMarkdown("");
   fileStore.setCurrentFilePath(documentPath);
   (
     window as Window & { __WORKGAGA_CURRENT_FILE__?: string }
@@ -327,6 +400,7 @@ const openFile = async (): Promise<FileOperationResult> => {
     hasUnsavedChanges = false;
     const editor = await showEditorView();
     editor.setMarkdown(markdown);
+    setCurrentMarkdown(markdown);
     fileStore.setCurrentFilePath(path);
     (
       window as Window & { __WORKGAGA_CURRENT_FILE__?: string }
@@ -349,13 +423,21 @@ const openFile = async (): Promise<FileOperationResult> => {
   }
 };
 
+const markdownWithKeywords = (markdown: string): string => {
+  const withTags = writeFrontmatterTags(markdown, documentTags.value);
+  return aiAssistantStore.settings.writeKeywordsToFrontmatter
+    ? writeFrontmatterKeywords(withTags, documentKeywords.value)
+    : withTags;
+};
+
 const saveAsNewMarkdown = async (): Promise<FileOperationResult> => {
   if (isLoading.value)
     return { success: false, error: MESSAGES.FILE.USER_CANCELLED };
   isLoading.value = true;
   try {
     const editor = await ensureEditorReady();
-    const markdown = editor.getMarkdown();
+    const markdown = markdownWithKeywords(editor.getMarkdown());
+    currentMarkdown.value = markdown;
     const path = await save({
       filters: [
         {
@@ -397,7 +479,8 @@ const saveAsNewMarkdown = async (): Promise<FileOperationResult> => {
 const saveMarkdown = async (): Promise<FileOperationResult> => {
   try {
     const editor = await ensureEditorReady();
-    const markdown = editor.getMarkdown();
+    const markdown = markdownWithKeywords(editor.getMarkdown());
+    currentMarkdown.value = markdown;
 
     if (!fileStore.currentFilePath) {
       return await saveAsNewMarkdown();
@@ -464,6 +547,11 @@ const dealAfterChange = (): void => {
     return;
   }
 
+  if (workgaga) {
+    currentMarkdown.value = workgaga.getMarkdown();
+    documentTags.value = parseFrontmatterTags(currentMarkdown.value);
+  }
+
   // 标记为有未保存的更改，不进行自动保存
   hasUnsavedChanges = true;
   if (fileStore.currentFilePath) {
@@ -480,6 +568,7 @@ const restoreLastOpenedFile = async (): Promise<void> => {
       hasUnsavedChanges = false;
       const editor = await ensureEditorReady(false);
       editor.setMarkdown(markdown);
+      setCurrentMarkdown(markdown);
       console.log("成功恢复上次打开的文件:", fileStore.currentFilePath);
       await updateTitle(fileStore.currentFilePath, false);
     } catch (error) {
@@ -516,6 +605,7 @@ const openDocumentInEditor = async (path: string): Promise<boolean> => {
     hasUnsavedChanges = false;
     const editor = await showEditorView();
     editor.setMarkdown(markdown);
+    setCurrentMarkdown(markdown);
     fileStore.setCurrentFilePath(path);
     (
       window as Window & { __WORKGAGA_CURRENT_FILE__?: string }
@@ -560,6 +650,7 @@ const handleOpenFileFromSidebar = async (
   hasUnsavedChanges = false;
   const editor = await showEditorView();
   editor.setMarkdown(content);
+  setCurrentMarkdown(content);
   fileStore.setCurrentFilePath(filePath);
   await updateTitle(filePath, false);
 };
@@ -650,6 +741,7 @@ const handleDocumentDeleted = (event: Event): void => {
     needDealAfterChange = false;
     hasUnsavedChanges = false;
     workgaga?.setMarkdown("");
+    setCurrentMarkdown("");
     fileStore.setCurrentFilePath(null);
     void updateTitle(null, false);
   }
@@ -701,6 +793,7 @@ const appEvents = useAppEvents({
 
 // ========== 生命周期钩子 ==========
 onMounted(async () => {
+  registerLocalKeywordModel();
   // 暴露 checkUnsavedChanges 给 window，以便外部可以使用
   (window as any).checkUnsavedChanges = checkUnsavedChanges;
 
@@ -735,6 +828,10 @@ onMounted(async () => {
   window.addEventListener(
     WINDOW_EVENTS.CHANGE_EDITOR_VIEW_MODE,
     handleChangeEditorViewMode,
+  );
+  window.addEventListener(
+    WINDOW_EVENTS.TOGGLE_METADATA_PANEL,
+    toggleMetadataPanel,
   );
 
   // 初始化工具栏状态
@@ -794,6 +891,10 @@ onUnmounted(async () => {
     WINDOW_EVENTS.OPEN_DOCUMENT_IN_EDITOR,
     handleOpenDocumentInEditor,
   );
+  window.removeEventListener(
+    WINDOW_EVENTS.TOGGLE_METADATA_PANEL,
+    toggleMetadataPanel,
+  );
   window.removeEventListener("switch-main-view", handleSwitchMainView);
   window.removeEventListener("open-dashboard-link", handleOpenDashboardLink);
   if (unlistenCloseRequested) {
@@ -811,7 +912,21 @@ onUnmounted(async () => {
     <SidePanelManager />
     <div class="main-view">
       <div class="editor-view" :class="{ active: activeMainView === 'editor' }">
-        <div id="markdown-editor"></div>
+        <div class="editor-body">
+          <div id="markdown-editor"></div>
+        </div>
+        <KeywordPanel
+          v-if="activeMainView === 'editor' && metadataPanelVisible"
+          :visible="metadataPanelVisible"
+          :markdown="currentMarkdown"
+          :keywords="documentKeywords"
+          :tags="documentTags"
+          :ignored="ignoredKeywords"
+          @update:keywords="updateDocumentKeywords"
+          @update:tags="updateDocumentTags"
+          @update:ignored="ignoredKeywords = $event"
+          @update:visible="setMetadataPanelVisible"
+        />
       </div>
       <Dashboard v-if="activeMainView === 'dashboard'" class="dashboard-view" />
       <AIAssistantPage v-if="activeMainView === 'ai'" class="ai-main-view" />
@@ -861,6 +976,20 @@ onUnmounted(async () => {
   z-index: 2;
 }
 
+.editor-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-view > .metadata-panel-host {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 280px;
+  min-width: 248px;
+}
+
 .dashboard-view,
 .ai-main-view,
 .knowledge-graph-main-view {
@@ -872,7 +1001,45 @@ onUnmounted(async () => {
 #markdown-editor {
   height: 100%;
   width: 100%;
-  flex: 1;
   min-height: 0;
+}
+
+@media (max-width: 720px) {
+  .editor-view {
+    display: block;
+    overflow: auto;
+  }
+
+  .editor-body {
+    min-width: 0;
+    min-height: calc(100% - 44px);
+    overflow: visible;
+  }
+
+  .editor-view {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .editor-view > .metadata-panel-host {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    flex: 0 0 auto;
+    order: 2;
+  }
+
+  .editor-body {
+    order: 1;
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-view,
+  .editor-body,
+  .keyword-panel {
+    scroll-behavior: auto;
+  }
 }
 </style>

@@ -67,4 +67,49 @@ describe("AI knowledge retrieval", () => {
       { title: "Release", path: "release.md", content: "release checklist" },
     ]);
   });
+
+  it("ranks keyword, tag, and alias matches above content-only matches", () => {
+    const keywordNote = note("keyword.md", "Keyword", "general context");
+    keywordNote.keywords = [{ text: "observability", status: "active" }];
+    const tagNote = note("tag.md", "Tag", "general context");
+    tagNote.tags = ["observability"];
+    const aliasNote = note("alias.md", "Alias", "general context");
+    aliasNote.aliases = ["observability"];
+    const contentNote = note("content.md", "Content", "observability details");
+
+    expect(
+      retrieveAIKnowledgeSnippets("observability", [
+        contentNote,
+        aliasNote,
+        tagNote,
+        keywordNote,
+      ]).map((item) => item.path),
+    ).toEqual(["keyword.md", "tag.md", "alias.md", "content.md"]);
+  });
+
+  it("ignores candidate and ignored keywords", () => {
+    const candidate = note("candidate.md", "Candidate", "unrelated");
+    candidate.keywords = [{ text: "secret-term", status: "candidate" }];
+    const ignored = note("ignored.md", "Ignored", "unrelated");
+    ignored.keywords = [{ text: "secret-term", status: "ignored" }];
+
+    expect(
+      retrieveAIKnowledgeSnippets("secret-term", [candidate, ignored]),
+    ).toEqual([]);
+  });
+
+  it("starts evidence snippets at a keyword match", () => {
+    const item = note(
+      "evidence.md",
+      "Evidence",
+      "背景说明\n无关内容\n这里记录 observability 的关键证据\n后续结论",
+    );
+    item.keywords = [{ text: "Observability", status: "active" }];
+
+    expect(
+      retrieveAIKnowledgeSnippets("observability", [item], {
+        maxSnippets: 1,
+      })[0]?.content,
+    ).toContain("这里记录 observability 的关键证据");
+  });
 });

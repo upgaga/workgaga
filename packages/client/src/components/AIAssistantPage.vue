@@ -237,9 +237,7 @@
                     class="conversation-compressed-hint"
                   >
                     早期
-                    {{
-                      conversationMessages.length - conversationKeepRecent
-                    }}
+                    {{ conversationMessages.length - conversationKeepRecent }}
                     条消息已压缩，仅展示最近
                     {{
                       Math.min(
@@ -1381,6 +1379,144 @@
                 >
               </div>
             </div>
+
+            <div class="settings-block">
+              <div class="section-title">关键词提取</div>
+              <div class="settings-grid">
+                <label
+                  ><input
+                    v-model="settings.keywordExtractionEnabled"
+                    type="checkbox"
+                    @change="updateSettingsFromUI"
+                  />
+                  启用关键词提取配置</label
+                >
+                <label
+                  ><input
+                    v-model="settings.autoExtractKeywordsOnSave"
+                    type="checkbox"
+                    @change="updateSettingsFromUI"
+                  />
+                  保存时自动提取关键词</label
+                >
+                <small class="keyword-setting-hint">
+                  当前仅保存该配置，自动任务调度接入后生效，不会阻塞保存。
+                </small>
+                <div>
+                  <span>提取模式</span>
+                  <select
+                    v-model="settings.keywordExtractionMode"
+                    @change="updateSettingsFromUI"
+                  >
+                    <option value="algorithm">算法</option>
+                    <option value="local-ai">本地 AI</option>
+                    <option value="llm">LLM</option>
+                    <option value="fallback">回退</option>
+                  </select>
+                </div>
+                <div class="local-model-status-block">
+                  <div class="section-header">
+                    <span>本地关键词模型</span>
+                    <button
+                      type="button"
+                      :disabled="localKeywordModelRefreshing"
+                      @click="refreshLocalKeywordModelStatus"
+                    >
+                      {{
+                        localKeywordModelRefreshing ? "刷新中..." : "刷新状态"
+                      }}
+                    </button>
+                  </div>
+                  <div class="overview-line">
+                    <span>ID</span
+                    ><strong>{{ settings.localKeywordModelId }}</strong>
+                  </div>
+                  <div class="overview-line">
+                    <span>版本</span
+                    ><strong>{{ settings.localKeywordModelVersion }}</strong>
+                  </div>
+                  <div class="overview-line">
+                    <span>状态</span
+                    ><strong>{{ localKeywordModelStatusText }}</strong>
+                  </div>
+                  <small
+                    v-if="settings.localKeywordModelStatus === 'unavailable'"
+                    class="muted"
+                  >
+                    未安装或未注册本地关键词模型，无法使用本地 AI 提取。
+                  </small>
+                  <small
+                    v-else-if="settings.localKeywordModelStatus === 'error'"
+                    class="muted"
+                  >
+                    本地模型状态检查失败，请确认模型适配器实现后重试。
+                  </small>
+                </div>
+                <div>
+                  <span>最大关键词数</span>
+                  <input
+                    v-model.number="settings.maxKeywords"
+                    type="number"
+                    min="1"
+                    max="50"
+                    @change="updateSettingsFromUI"
+                  />
+                </div>
+                <div>
+                  <span>候选阈值</span>
+                  <input
+                    v-model.number="settings.keywordCandidateThreshold"
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    @change="updateSettingsFromUI"
+                  />
+                </div>
+                <div>
+                  <span>激活阈值</span>
+                  <input
+                    v-model.number="settings.keywordActiveThreshold"
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    @change="updateSettingsFromUI"
+                  />
+                </div>
+                <div>
+                  <span>关键词 LLM 渠道</span>
+                  <select
+                    v-model="settings.keywordLLMChannelId"
+                    @change="updateSettingsFromUI"
+                  >
+                    <option value="">不指定</option>
+                    <option
+                      v-for="channel in channels"
+                      :key="channel.id"
+                      :value="channel.id"
+                    >
+                      {{ channel.name }}（{{ channel.model || "未填写模型" }}）
+                    </option>
+                  </select>
+                </div>
+                <label
+                  ><input
+                    v-model="settings.writeKeywordsToFrontmatter"
+                    type="checkbox"
+                    @change="updateSettingsFromUI"
+                  />
+                  将关键词写入 Frontmatter</label
+                >
+                <small class="keyword-setting-hint">
+                  关闭时关键词仅保留为当前文档草稿，不会写入文件。
+                </small>
+              </div>
+              <small class="keyword-privacy-notice">
+                关键词识别默认在本地完成。选择外部 LLM
+                时，当前文档内容会发送到所选渠道；请确认服务商的数据处理与隐私策略。
+              </small>
+            </div>
           </div>
         </section>
 
@@ -1555,6 +1691,7 @@ import { notifySuccess, notifyWarning } from "../utils/notifications";
 import { retrieveAIKnowledgeSnippets } from "../utils/aiKnowledgeRetrieval";
 import { getRelativePath } from "../utils/knowledgeGraph";
 import { WINDOW_EVENTS } from "../constants/events";
+import { getLocalKeywordModelStatus } from "../utils/localKeywordModel";
 
 const aiStore = useAIAssistantStore();
 const dashboardStore = useDashboardStore();
@@ -1580,6 +1717,12 @@ const newSkillName = ref("");
 const newAgentName = ref("");
 const settings = reactive({
   ...aiStore.settings,
+});
+const localKeywordModelRefreshing = ref(false);
+const localKeywordModelStatusText = computed(() => {
+  if (settings.localKeywordModelStatus === "available") return "可用";
+  if (settings.localKeywordModelStatus === "error") return "检查失败";
+  return "不可用（未安装或未注册）";
 });
 
 const providerOptions: { value: AIModelProvider; label: string }[] = [
@@ -2522,11 +2665,40 @@ const uninstallInstalledPlugin = async (id: string): Promise<void> => {
   await aiStore.uninstallPlugin(id);
 };
 
+const refreshLocalKeywordModelStatus = async (): Promise<void> => {
+  localKeywordModelRefreshing.value = true;
+  try {
+    const status = await getLocalKeywordModelStatus();
+    settings.localKeywordModelId = status.id;
+    settings.localKeywordModelVersion = status.version;
+    settings.localKeywordModelStatus = status.status;
+    aiStore.updateSettings({
+      localKeywordModelId: status.id,
+      localKeywordModelVersion: status.version,
+      localKeywordModelStatus: status.status,
+    });
+  } finally {
+    localKeywordModelRefreshing.value = false;
+  }
+};
+
 const updateSettingsFromUI = (): void => {
   const maxKnowledgeSnippets = Number(settings.maxKnowledgeSnippets);
   settings.maxKnowledgeSnippets = Number.isFinite(maxKnowledgeSnippets)
     ? Math.min(20, Math.max(0, Math.floor(maxKnowledgeSnippets)))
     : 5;
+  const maxKeywords = Number(settings.maxKeywords);
+  settings.maxKeywords = Number.isFinite(maxKeywords)
+    ? Math.min(50, Math.max(1, Math.floor(maxKeywords)))
+    : 8;
+  const candidateThreshold = Number(settings.keywordCandidateThreshold);
+  settings.keywordCandidateThreshold = Number.isFinite(candidateThreshold)
+    ? Math.min(1, Math.max(0, candidateThreshold))
+    : 0.35;
+  const activeThreshold = Number(settings.keywordActiveThreshold);
+  settings.keywordActiveThreshold = Number.isFinite(activeThreshold)
+    ? Math.min(1, Math.max(0, activeThreshold))
+    : 0.65;
   aiStore.updateSettings(settings);
 };
 

@@ -12,6 +12,7 @@
     "lint:fix": "cd ../.. && npx prettier --write packages/client/src/**/*.{ts,vue} && npx eslint packages/client/src/**/*.{ts,vue} --fix"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.7.2",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-dialog": "2.7.1",
     "@tauri-apps/plugin-fs": "2.5.1",

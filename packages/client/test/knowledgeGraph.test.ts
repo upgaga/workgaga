@@ -1,10 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { KnowledgeNote } from "../src/components/types";
+
+const mockFs = vi.hoisted(() => ({
+  directories: new Map<
+    string,
+    Array<{ name: string; isDirectory?: boolean }>
+  >(),
+  files: new Map<string, { content: string; size: number; mtime: number }>(),
+}));
+
+vi.mock("@tauri-apps/plugin-fs", () => ({
+  readDir: vi.fn(async (path: string) => mockFs.directories.get(path) || []),
+  readTextFile: vi.fn(async (path: string) => {
+    const file = mockFs.files.get(path);
+    if (!file) throw new Error(`Missing mock file: ${path}`);
+    return file.content;
+  }),
+  stat: vi.fn(async (path: string) => {
+    const file = mockFs.files.get(path);
+    if (!file) throw new Error(`Missing mock file: ${path}`);
+    return { size: file.size, mtime: new Date(file.mtime) };
+  }),
+}));
+
 import {
   buildKnowledgeGraph,
   extractMarkdownMetadata,
   getIncomingKnowledgeGraphLinks,
   getKnowledgeGraphNeighborhood,
+  indexKnowledgeVaultIncremental,
   mergeKnowledgeGraphData,
   summarizeKnowledgeFileChanges,
   type KnowledgeFileSnapshot,
@@ -61,7 +85,91 @@ describe("knowledge graph indexing", () => {
       headings: [{ id: "home.md#heading-1", text: "Home", level: 1 }],
       tags: ["guide", "setup", "work"],
       aliases: ["Home", "Start"],
+      keywords: [],
     });
+  });
+
+  it("reads frontmatter keywords and adds keyword mention links", () => {
+    const metadata = extractMarkdownMetadata(
+      '---\nkeywords: [TypeScript, "Knowledge Graph"]\n---\n# Notes',
+      "notes.md",
+    );
+    expect(metadata.keywords).toEqual([
+      {
+        text: "TypeScript",
+        normalized: "typescript",
+        source: "frontmatter",
+      },
+      {
+        text: "Knowledge Graph",
+        normalized: "knowledge graph",
+        source: "frontmatter",
+      },
+    ]);
+
+    const graph = buildKnowledgeGraph([
+      note("a.md", "", { keywords: metadata.keywords }),
+      note("b.md", "", {
+        keywords: [{ text: "typescript", normalized: "typescript" }],
+      }),
+    ]);
+
+    expect(graph.nodes.filter((node) => node.category === "keyword")).toEqual([
+      expect.objectContaining({ id: "keyword:typescript", name: "typescript" }),
+      expect.objectContaining({
+        id: "keyword:knowledge graph",
+        name: "Knowledge Graph",
+      }),
+    ]);
+    expect(graph.links.filter((link) => link.type === "mentions")).toHaveLength(
+      3,
+    );
+    expect(
+      graph.links.filter((link) => link.type === "related_by_keyword"),
+    ).toEqual([
+      expect.objectContaining({
+        source: "a.md",
+        target: "b.md",
+        type: "related_by_keyword",
+        weight: 1,
+        evidence: ["TypeScript"],
+      }),
+    ]);
+  });
+
+  it("preserves keyword metadata on mentions and excludes non-active keywords", () => {
+    const graph = buildKnowledgeGraph([
+      note("metadata.md", "", {
+        keywords: [
+          {
+            text: "Active",
+            normalized: "active",
+            score: 0.8,
+            confidence: 0.9,
+            source: "frontmatter",
+            evidence: ["frontmatter:keywords"],
+          },
+          { text: "Candidate", normalized: "candidate", status: "candidate" },
+          { text: "Ignored", normalized: "ignored", status: "ignored" },
+        ],
+      }),
+    ]);
+
+    expect(
+      graph.nodes
+        .filter((node) => node.category === "keyword")
+        .map((node) => node.id),
+    ).toEqual(["keyword:active"]);
+    expect(graph.links).toContainEqual(
+      expect.objectContaining({
+        type: "mentions",
+        target: "keyword:active",
+        weight: 0.8,
+        confidence: 0.9,
+        sourceKind: "frontmatter",
+        evidence: ["frontmatter:keywords"],
+      }),
+    );
   });
 
   it("adds heading and tag nodes with semantic links", () => {
@@ -173,6 +281,115 @@ describe("knowledge graph indexing", () => {
       unchangedFiles: 1,
       deletedFiles: 1,
     });
+  });
+
+  it("indexes unchanged, changed, and deleted files while preserving keyword graph data", async () => {
+    const vaultPath = "/mock-vault";
+    const previousNotes = [
+      note("unchanged.md", "", {
+        size: 10,
+        mtime: 1,
+        keywords: [{ text: "shared", normalized: "shared" }],
+      }),
+      note("changed.md", "", {
+        size: 10,
+        mtime: 1,
+        keywords: [{ text: "old", normalized: "old" }],
+      }),
+      note("deleted.md", "", {
+        size: 10,
+        mtime: 1,
+        keywords: [{ text: "deleted", normalized: "deleted" }],
+      }),
+    ];
+    const previousFiles = [
+      snapshot("unchanged.md", 10, 1),
+      snapshot("changed.md", 10, 1),
+      snapshot("deleted.md", 10, 1),
+    ];
+    mockFs.directories.clear();
+    mockFs.files.clear();
+    mockFs.directories.set(vaultPath, [
+      { name: "unchanged.md" },
+      { name: "changed.md" },
+    ]);
+    mockFs.files.set(`${vaultPath}/unchanged.md`, {
+      content: "---\nkeywords: [shared]\n---\n# Unchanged",
+      size: 10,
+      mtime: 1,
+    });
+    mockFs.files.set(`${vaultPath}/changed.md`, {
+      content: "---\nkeywords: [shared, changed]\n---\n# Changed",
+      size: 22,
+      mtime: 2,
+    });
+
+    const graph = await indexKnowledgeVaultIncremental(vaultPath, {
+      previousNotes,
+      previousFiles,
+    });
+
+    expect(graph.indexStats).toEqual(
+      expect.objectContaining({
+        mode: "incremental",
+        totalFiles: 2,
+        changedFiles: 1,
+        unchangedFiles: 1,
+        deletedFiles: 1,
+        failedFiles: 0,
+      }),
+    );
+    expect(graph.nodes.map((node) => node.id)).not.toContain("deleted.md");
+    expect(graph.nodes.map((node) => node.id)).toEqual(
+      expect.arrayContaining([
+        "unchanged.md",
+        "changed.md",
+        "keyword:shared",
+        "keyword:changed",
+      ]),
+    );
+    expect(graph.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "unchanged.md",
+          target: "keyword:shared",
+          type: "mentions",
+        }),
+        expect.objectContaining({
+          source: "changed.md",
+          target: "keyword:changed",
+          type: "mentions",
+        }),
+        expect.objectContaining({
+          source: "unchanged.md",
+          target: "changed.md",
+          type: "related_by_keyword",
+          evidence: ["shared"],
+        }),
+      ]),
+    );
+  });
+
+  it("records keyword graph build scale for 1,000 notes and keywords", () => {
+    const notes = Array.from({ length: 1000 }, (_, index) =>
+      note(`scale-${index}.md`, "", {
+        keywords: [
+          { text: `keyword-${index}`, normalized: `keyword-${index}` },
+        ],
+      }),
+    );
+    const startedAt = performance.now();
+    const graph = buildKnowledgeGraph(notes);
+    const durationMs = performance.now() - startedAt;
+
+    expect(Number.isFinite(durationMs)).toBe(true);
+    expect(graph.nodes).toHaveLength(2000);
+    expect(graph.links.filter((link) => link.type === "mentions")).toHaveLength(
+      1000,
+    );
+    expect(
+      graph.nodes.filter((node) => node.category === "keyword"),
+    ).toHaveLength(1000);
   });
 
   it("removes deleted note nodes and preserves missing link nodes", () => {

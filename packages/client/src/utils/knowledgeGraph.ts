@@ -1,4 +1,8 @@
 import { readDir, readTextFile, stat } from "@tauri-apps/plugin-fs";
+import {
+  normalizeKeyword,
+  parseFrontmatterKeywords,
+} from "./keywordExtraction";
 import type {
   KnowledgeGraphData,
   KnowledgeGraphIndexStats,
@@ -17,6 +21,7 @@ export interface ParsedMarkdownMetadata {
   headings: { id: string; text: string; level: number }[];
   tags: string[];
   aliases: string[];
+  keywords: KnowledgeNote["keywords"];
 }
 
 export const extractMarkdownMetadata = (
@@ -26,7 +31,7 @@ export const extractMarkdownMetadata = (
   const headings: ParsedMarkdownMetadata["headings"] = [];
   const tags = new Set<string>();
   const aliases: string[] = [];
-  const lines = content.split(/\r?\n/);
+  const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
   let inFrontmatter = false;
   let frontmatterClosed = false;
 
@@ -81,7 +86,12 @@ export const extractMarkdownMetadata = (
     tagMatches.forEach((tag) => tags.add(tag.replace(/^.*#/, "")));
   });
 
-  return { headings, tags: Array.from(tags), aliases };
+  return {
+    headings,
+    tags: Array.from(tags),
+    aliases,
+    keywords: parseFrontmatterKeywords(content.replace(/^\uFEFF/, "")),
+  };
 };
 
 export interface KnowledgeFileSnapshot {
@@ -282,7 +292,7 @@ const buildNoteIndexes = (notes: KnowledgeNote[]) => {
   notes.forEach((note) => {
     const relativePath = normalizePath(note.relativePath);
     const stemPath = stripMarkdownExtension(relativePath);
-    const title = note.title.toLowerCase();
+    const title = note.title.trim().toLowerCase();
 
     byRelativePath.set(relativePath.toLowerCase(), note);
     byStemPath.set(stemPath.toLowerCase(), [
@@ -489,6 +499,8 @@ export const buildKnowledgeGraph = (
   const indexes = buildNoteIndexes(notes);
   const nodes = new Map<string, KnowledgeGraphNode>();
   const links = new Map<string, KnowledgeGraphLink>();
+  const notesByKeyword = new Map<string, KnowledgeNote[]>();
+  const keywordEvidence = new Map<string, Map<string, string>>();
 
   notes.forEach((note) => {
     nodes.set(note.id, {
@@ -535,7 +547,83 @@ export const buildKnowledgeGraph = (
         raw: `#${tag}`,
       });
     });
+
+    (note.keywords || []).forEach((keyword) => {
+      if (keyword.status === "ignored" || keyword.status === "candidate")
+        return;
+      const normalized = normalizeKeyword(keyword.normalized || keyword.text);
+      if (!normalized) return;
+      const keywordId = `keyword:${normalized}`;
+      nodes.set(keywordId, {
+        id: keywordId,
+        name: keyword.text,
+        exists: true,
+        category: "keyword",
+      });
+      links.set(`${note.id}->${keywordId}:mentions`, {
+        source: note.id,
+        target: keywordId,
+        type: "mentions",
+        raw: keyword.text,
+        ...(keyword.score !== undefined ? { weight: keyword.score } : {}),
+        ...(keyword.confidence !== undefined
+          ? { confidence: keyword.confidence }
+          : {}),
+        ...(keyword.source ? { sourceKind: keyword.source } : {}),
+        ...(keyword.evidence?.length ? { evidence: keyword.evidence } : {}),
+      });
+      const relatedNotes = notesByKeyword.get(normalized) || [];
+      if (!relatedNotes.includes(note) && relatedNotes.length < 20) {
+        relatedNotes.push(note);
+      }
+      notesByKeyword.set(normalized, relatedNotes);
+      const evidenceByNote =
+        keywordEvidence.get(normalized) || new Map<string, string>();
+      if (!evidenceByNote.has(note.id))
+        evidenceByNote.set(note.id, keyword.text);
+      keywordEvidence.set(normalized, evidenceByNote);
+    });
   });
+
+  const relatedPairs = new Map<
+    string,
+    { source: KnowledgeNote; target: KnowledgeNote; evidence: string[] }
+  >();
+  notesByKeyword.forEach((relatedNotes, normalized) => {
+    for (let index = 0; index < relatedNotes.length; index += 1) {
+      for (
+        let otherIndex = index + 1;
+        otherIndex < relatedNotes.length;
+        otherIndex += 1
+      ) {
+        const source = relatedNotes[index];
+        const target = relatedNotes[otherIndex];
+        const linkId = `${source.id}->${target.id}:related_by_keyword`;
+        const pair = relatedPairs.get(linkId) || {
+          source,
+          target,
+          evidence: [],
+        };
+        const keyword =
+          keywordEvidence.get(normalized)?.get(source.id) || normalized;
+        if (!pair.evidence.includes(keyword)) pair.evidence.push(keyword);
+        relatedPairs.set(linkId, pair);
+      }
+    }
+  });
+  Array.from(relatedPairs.values())
+    .sort((a, b) => b.evidence.length - a.evidence.length)
+    .slice(0, 500)
+    .forEach(({ source, target, evidence }) => {
+      links.set(`${source.id}->${target.id}:related_by_keyword`, {
+        source: source.id,
+        target: target.id,
+        type: "related_by_keyword",
+        raw: "shared keyword",
+        weight: evidence.length,
+        evidence,
+      });
+    });
 
   notes.forEach((note) => {
     const parsedLinks = [
@@ -634,7 +722,10 @@ const scanMarkdownFiles = async (
         relativePath,
         title: getNoteTitle(relativePath),
         content,
-        ...extractMarkdownMetadata(content, normalizePath(relativePath)),
+        ...extractMarkdownMetadata(
+          content.replace(/^\uFEFF/, ""),
+          normalizePath(relativePath),
+        ),
         size: info.size,
         mtime: info.mtime?.getTime(),
       });

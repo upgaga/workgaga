@@ -132,6 +132,31 @@ export interface KnowledgeVault {
   lastIndexedAt?: number;
 }
 
+export interface KnowledgeKeyword {
+  text: string;
+  normalized?: string;
+  score?: number;
+  frequency?: number;
+  source?: "frontmatter" | "title" | "heading" | "tag" | "alias" | "content";
+  status?: "active" | "candidate" | "ignored";
+  confidence?: number;
+  evidence?: string[];
+  modelId?: string;
+  modelVersion?: string;
+}
+
+export interface KeywordExtraction {
+  keywords: KnowledgeKeyword[];
+  algorithm: "local" | "frontmatter" | "combined";
+  topN: number;
+  durationMs?: number;
+  extractor?: string;
+  modelId?: string;
+  modelVersion?: string;
+  degraded?: boolean;
+  fallback?: boolean;
+}
+
 export interface KnowledgeNote {
   id: string;
   path: string;
@@ -143,6 +168,8 @@ export interface KnowledgeNote {
   aliases?: string[];
   headings?: KnowledgeNoteHeading[];
   tags?: string[];
+  keywords?: KnowledgeKeyword[];
+  keywordExtraction?: KeywordExtraction;
 }
 
 export interface KnowledgeNoteHeading {
@@ -151,7 +178,12 @@ export interface KnowledgeNoteHeading {
   level: number;
 }
 
-export type KnowledgeGraphNodeCategory = "note" | "missing" | "heading" | "tag";
+export type KnowledgeGraphNodeCategory =
+  | "note"
+  | "missing"
+  | "heading"
+  | "tag"
+  | "keyword";
 
 export interface KnowledgeGraphNode {
   id: string;
@@ -167,13 +199,19 @@ export type KnowledgeGraphLinkType =
   | "wiki"
   | "markdown"
   | "contains"
-  | "tagged_with";
+  | "tagged_with"
+  | "mentions"
+  | "related_by_keyword";
 
 export interface KnowledgeGraphLink {
   source: string;
   target: string;
   type: KnowledgeGraphLinkType;
   raw: string;
+  weight?: number;
+  confidence?: number;
+  sourceKind?: string;
+  evidence?: string[];
 }
 
 export interface KnowledgeGraphData {

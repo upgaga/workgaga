@@ -1,15 +1,19 @@
-import Cherry, { exportPDF } from 'workgaga';
-import { CherryOptions } from 'workgaga/types/cherry';
-import katex from 'katex';
-import html2canvas from 'html2canvas';
-import 'katex/dist/katex.min.css';
-import '@fontsource/noto-sans-sc/chinese-simplified.css';
+import Cherry, { exportPDF } from "workgaga";
+import { CherryOptions } from "workgaga/types/cherry";
+import katex from "katex";
+import html2canvas from "html2canvas";
+import "katex/dist/katex.min.css";
+import "@fontsource/noto-sans-sc/chinese-simplified.css";
 
-import { open } from '@tauri-apps/plugin-dialog';
-import { writeFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { pinyin } from 'pinyin';
-import { WINDOW_EVENTS } from '../constants/events';
-import { notifyError, notifySuccess, notifyWarning } from '../utils/notifications';
+import { open } from "@tauri-apps/plugin-dialog";
+import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { pinyin } from "pinyin";
+import { WINDOW_EVENTS } from "../constants/events";
+import {
+  notifyError,
+  notifySuccess,
+  notifyWarning,
+} from "../utils/notifications";
 
 /**
  * ECharts优化导入 - 使用命名空间导入替代默认导入
@@ -18,7 +22,7 @@ import { notifyError, notifySuccess, notifyWarning } from '../utils/notification
  * 2. 避免版本兼容性问题
  * 3. 支持按需导入echarts功能
  */
-import * as echarts from 'echarts';
+import * as echarts from "echarts";
 
 /**
  * ECharts类型兼容性处理
@@ -33,7 +37,8 @@ interface EChartsInstance {
 // 确保echarts实例的类型兼容性
 const echartsInstance: EChartsInstance = echarts as any;
 
-const toPinyin = (text: string) => pinyin(text, { style: pinyin.STYLE_TONE, heteronym: false }).flat().join(' ');
+const toPinyin = (text: string) =>
+  pinyin(text, { style: pinyin.STYLE_TONE, heteronym: false }).flat().join(" ");
 
 type CustomConfig = {
   CustomToolbar: {
@@ -42,33 +47,38 @@ type CustomConfig = {
       customSave: any;
       customEditorExport: any;
       customViewMode: any;
+      customMetadataPanel: any;
     };
   };
 };
 
-type EditorViewMode = 'editOnly' | 'previewOnly' | 'edit&preview';
+type EditorViewMode = "editOnly" | "previewOnly" | "edit&preview";
 
 const changeEditorViewMode = (mode: EditorViewMode) => {
-  window.dispatchEvent(new CustomEvent(WINDOW_EVENTS.CHANGE_EDITOR_VIEW_MODE, { detail: { mode } }));
+  window.dispatchEvent(
+    new CustomEvent(WINDOW_EVENTS.CHANGE_EDITOR_VIEW_MODE, {
+      detail: { mode },
+    }),
+  );
 };
 
-const customViewMode = Cherry.createMenuHook('视图模式', {
-  iconName: 'preview',
+const customViewMode = Cherry.createMenuHook("视图模式", {
+  iconName: "preview",
   subMenuConfig: [
     {
       noIcon: true,
-      name: '仅编辑',
-      onclick: () => changeEditorViewMode('editOnly'),
+      name: "仅编辑",
+      onclick: () => changeEditorViewMode("editOnly"),
     },
     {
       noIcon: true,
-      name: '仅预览',
-      onclick: () => changeEditorViewMode('previewOnly'),
+      name: "仅预览",
+      onclick: () => changeEditorViewMode("previewOnly"),
     },
     {
       noIcon: true,
-      name: '编辑 + 预览',
-      onclick: () => changeEditorViewMode('edit&preview'),
+      name: "编辑 + 预览",
+      onclick: () => changeEditorViewMode("edit&preview"),
     },
   ],
   onClick() {
@@ -76,25 +86,47 @@ const customViewMode = Cherry.createMenuHook('视图模式', {
   },
 });
 
-const customSave = Cherry.createMenuHook('save', {
+const customMetadataPanel = Cherry.createMenuHook("标签/元数据", {
   icon: {
-    type: 'svg',
-    iconStyle: 'width:16px;height:16px;',
+    type: "svg",
+    iconStyle: "width:16px;height:16px;",
+    content:
+      '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h8"/><path d="M15 13v4m-2-2h4"/></svg>',
+  },
+  onClick() {
+    this.updateMarkdown = false;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(WINDOW_EVENTS.TOGGLE_METADATA_PANEL),
+      );
+    }
+  },
+});
+
+const customSave = Cherry.createMenuHook("save", {
+  icon: {
+    type: "svg",
+    iconStyle: "width:16px;height:16px;",
     content:
       '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M5 3.5h8.5l1.5 1.5V16.5H5z" /><path d="M7 3.5v5h6V3.5" /><path d="M7 14.5h6" /></svg>',
   },
   onClick() {
     this.updateMarkdown = false;
-    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-      const markdown = this.$cherry?.getMarkdown?.() ?? '';
-      const event = new CustomEvent(WINDOW_EVENTS.REQUEST_SAVE, { detail: { markdown } });
+    if (
+      typeof window !== "undefined" &&
+      typeof window.dispatchEvent === "function"
+    ) {
+      const markdown = this.$cherry?.getMarkdown?.() ?? "";
+      const event = new CustomEvent(WINDOW_EVENTS.REQUEST_SAVE, {
+        detail: { markdown },
+      });
       window.dispatchEvent(event);
     }
   },
 });
 
 const dataUrlToBytes = (dataUrl: string): Uint8Array => {
-  const base64 = dataUrl.split(',')[1] ?? '';
+  const base64 = dataUrl.split(",")[1] ?? "";
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
@@ -103,14 +135,22 @@ const dataUrlToBytes = (dataUrl: string): Uint8Array => {
   return bytes;
 };
 
-const sanitizeExportName = (name: string): string => name.replace(/[\\/:*?"<>|]/g, '').trim() || 'workgaga-export';
+const sanitizeExportName = (name: string): string =>
+  name.replace(/[\\/:*?"<>|]/g, "").trim() || "workgaga-export";
 
 const getExportFileName = (): string => {
-  const currentPath = (window as Window & { __WORKGAGA_CURRENT_FILE__?: string }).__WORKGAGA_CURRENT_FILE__;
-  const documentName = currentPath?.split(/[\\/]/).pop()?.replace(/\.(md|markdown|mdown|mkdn|mdtxt|text)$/i, '');
-  const heading = document.querySelector('.cherry-previewer h1')?.textContent?.trim();
-  const title = document.title.replace(/\s*-\s*workgaga\s*$/i, '').trim();
-  return sanitizeExportName(documentName || title || heading || '未命名文档');
+  const currentPath = (
+    window as Window & { __WORKGAGA_CURRENT_FILE__?: string }
+  ).__WORKGAGA_CURRENT_FILE__;
+  const documentName = currentPath
+    ?.split(/[\\/]/)
+    .pop()
+    ?.replace(/\.(md|markdown|mdown|mkdn|mdtxt|text)$/i, "");
+  const heading = document
+    .querySelector(".cherry-previewer h1")
+    ?.textContent?.trim();
+  const title = document.title.replace(/\s*-\s*workgaga\s*$/i, "").trim();
+  return sanitizeExportName(documentName || title || heading || "未命名文档");
 };
 
 const selectExportDirectory = async (): Promise<string | null> => {
@@ -119,7 +159,8 @@ const selectExportDirectory = async (): Promise<string | null> => {
   return Array.isArray(selected) ? selected[0] : selected;
 };
 
-const joinPath = (directory: string, fileName: string): string => `${directory.replace(/[\\/]$/, '')}/${fileName}`;
+const joinPath = (directory: string, fileName: string): string =>
+  `${directory.replace(/[\\/]$/, "")}/${fileName}`;
 
 const exportProgress = {
   mask: null as HTMLDivElement | null,
@@ -131,47 +172,47 @@ const exportProgress = {
 const showExportProgress = (message: string, value: number): void => {
   exportProgress.value = Math.max(0, Math.min(100, value));
   if (!exportProgress.mask) {
-    const mask = document.createElement('div');
-    mask.className = 'editor-export-progress-mask';
-    mask.style.position = 'fixed';
-    mask.style.inset = '0';
-    mask.style.zIndex = '99999';
-    mask.style.display = 'flex';
-    mask.style.alignItems = 'center';
-    mask.style.justifyContent = 'center';
-    mask.style.background = 'rgba(15, 23, 42, 0.35)';
+    const mask = document.createElement("div");
+    mask.className = "editor-export-progress-mask";
+    mask.style.position = "fixed";
+    mask.style.inset = "0";
+    mask.style.zIndex = "99999";
+    mask.style.display = "flex";
+    mask.style.alignItems = "center";
+    mask.style.justifyContent = "center";
+    mask.style.background = "rgba(15, 23, 42, 0.35)";
 
-    const panel = document.createElement('div');
-    panel.style.width = '360px';
-    panel.style.padding = '22px 24px';
-    panel.style.borderRadius = '12px';
-    panel.style.background = '#ffffff';
-    panel.style.boxShadow = '0 18px 45px rgba(15, 23, 42, 0.22)';
+    const panel = document.createElement("div");
+    panel.style.width = "360px";
+    panel.style.padding = "22px 24px";
+    panel.style.borderRadius = "12px";
+    panel.style.background = "#ffffff";
+    panel.style.boxShadow = "0 18px 45px rgba(15, 23, 42, 0.22)";
 
-    const title = document.createElement('div');
-    title.textContent = '正在导出';
-    title.style.marginBottom = '12px';
-    title.style.fontSize = '16px';
-    title.style.fontWeight = '600';
-    title.style.color = '#111827';
+    const title = document.createElement("div");
+    title.textContent = "正在导出";
+    title.style.marginBottom = "12px";
+    title.style.fontSize = "16px";
+    title.style.fontWeight = "600";
+    title.style.color = "#111827";
 
-    const text = document.createElement('div');
-    text.style.marginBottom = '10px';
-    text.style.fontSize = '13px';
-    text.style.color = '#4b5563';
+    const text = document.createElement("div");
+    text.style.marginBottom = "10px";
+    text.style.fontSize = "13px";
+    text.style.color = "#4b5563";
 
-    const track = document.createElement('div');
-    track.style.height = '8px';
-    track.style.overflow = 'hidden';
-    track.style.borderRadius = '999px';
-    track.style.background = '#e5e7eb';
+    const track = document.createElement("div");
+    track.style.height = "8px";
+    track.style.overflow = "hidden";
+    track.style.borderRadius = "999px";
+    track.style.background = "#e5e7eb";
 
-    const bar = document.createElement('div');
-    bar.style.height = '100%';
-    bar.style.width = '0%';
-    bar.style.borderRadius = '999px';
-    bar.style.background = '#2563eb';
-    bar.style.transition = 'width 0.2s ease';
+    const bar = document.createElement("div");
+    bar.style.height = "100%";
+    bar.style.width = "0%";
+    bar.style.borderRadius = "999px";
+    bar.style.background = "#2563eb";
+    bar.style.transition = "width 0.2s ease";
 
     track.appendChild(bar);
     panel.append(title, text, track);
@@ -181,12 +222,16 @@ const showExportProgress = (message: string, value: number): void => {
     exportProgress.bar = bar;
     exportProgress.text = text;
   }
-  if (exportProgress.text) exportProgress.text.textContent = `${message} ${exportProgress.value}%`;
-  if (exportProgress.bar) exportProgress.bar.style.width = `${exportProgress.value}%`;
+  if (exportProgress.text)
+    exportProgress.text.textContent = `${message} ${exportProgress.value}%`;
+  if (exportProgress.bar)
+    exportProgress.bar.style.width = `${exportProgress.value}%`;
 };
 
 const hideExportProgress = (): void => {
-  document.querySelectorAll('.editor-export-progress-mask').forEach((mask) => mask.remove());
+  document
+    .querySelectorAll(".editor-export-progress-mask")
+    .forEach((mask) => mask.remove());
   exportProgress.mask = null;
   exportProgress.bar = null;
   exportProgress.text = null;
@@ -206,46 +251,59 @@ const waitForPaint = (): Promise<void> =>
 hideExportProgress();
 
 const getExportPreviewElement = (): HTMLElement => {
-  const previewer = document.querySelector('.cherry-previewer');
+  const previewer = document.querySelector(".cherry-previewer");
   if (!(previewer instanceof HTMLElement)) {
-    throw new Error('未找到预览区域');
+    throw new Error("未找到预览区域");
   }
   const clone = previewer.cloneNode(true) as HTMLElement;
-  clone.className = clone.className.replace('cherry-previewer--hidden', '');
+  clone.className = clone.className.replace("cherry-previewer--hidden", "");
   clone.style.width = `${previewer.clientWidth || 800}px`;
-  clone.style.height = 'auto';
-  clone.style.maxHeight = 'none';
-  clone.style.overflow = 'visible';
-  clone.querySelectorAll('mjx-assistive-mml').forEach((item) => {
-    if (item instanceof HTMLElement) item.style.visibility = 'hidden';
+  clone.style.height = "auto";
+  clone.style.maxHeight = "none";
+  clone.style.overflow = "visible";
+  clone.querySelectorAll("mjx-assistive-mml").forEach((item) => {
+    if (item instanceof HTMLElement) item.style.visibility = "hidden";
   });
-  clone.innerHTML = clone.innerHTML.replace(/<audio [^>]+?>([^\n]*?)<\/audio>/g, '$1');
-  clone.innerHTML = clone.innerHTML.replace(/<video [^>]+?>([^\n]*?)<\/video>/g, '$1');
-  clone.innerHTML = clone.innerHTML.replace(/class="cherry-code-unExpand("| )/g, 'class="cherry-code-expand$1');
-  const wrapper = document.createElement('div');
-  wrapper.className = 'cherry-export-wrapper';
-  const cherryInstanceDom = previewer.closest('.cherry');
-  if (cherryInstanceDom) wrapper.className = `${wrapper.className} ${cherryInstanceDom.className}`;
-  wrapper.style.position = 'fixed';
-  wrapper.style.left = '-100000px';
-  wrapper.style.top = '0';
+  clone.innerHTML = clone.innerHTML.replace(
+    /<audio [^>]+?>([^\n]*?)<\/audio>/g,
+    "$1",
+  );
+  clone.innerHTML = clone.innerHTML.replace(
+    /<video [^>]+?>([^\n]*?)<\/video>/g,
+    "$1",
+  );
+  clone.innerHTML = clone.innerHTML.replace(
+    /class="cherry-code-unExpand("| )/g,
+    'class="cherry-code-expand$1',
+  );
+  const wrapper = document.createElement("div");
+  wrapper.className = "cherry-export-wrapper";
+  const cherryInstanceDom = previewer.closest(".cherry");
+  if (cherryInstanceDom)
+    wrapper.className = `${wrapper.className} ${cherryInstanceDom.className}`;
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-100000px";
+  wrapper.style.top = "0";
   wrapper.style.width = clone.style.width;
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
   return clone;
 };
 
-const renderExportCanvas = async (): Promise<{ canvas: HTMLCanvasElement; cleanup: () => void }> => {
-  showExportProgress('正在准备预览内容...', 25);
+const renderExportCanvas = async (): Promise<{
+  canvas: HTMLCanvasElement;
+  cleanup: () => void;
+}> => {
+  showExportProgress("正在准备预览内容...", 25);
   await waitForPaint();
   const element = getExportPreviewElement();
   const wrapper = element.parentElement;
   try {
-    showExportProgress('正在生成导出内容...', 45);
+    showExportProgress("正在生成导出内容...", 45);
     await waitForPaint();
     const canvas = await html2canvas(element, {
       allowTaint: true,
-      backgroundColor: '#ffffff',
+      backgroundColor: "#ffffff",
       height: element.scrollHeight,
       width: element.clientWidth,
       scrollY: 0,
@@ -259,45 +317,54 @@ const renderExportCanvas = async (): Promise<{ canvas: HTMLCanvasElement; cleanu
   }
 };
 
-const exportEditorFile = async (type: 'pdf' | 'screenShot' | 'markdown' | 'html', cherry: any): Promise<void> => {
+const exportEditorFile = async (
+  type: "pdf" | "screenShot" | "markdown" | "html",
+  cherry: any,
+): Promise<void> => {
   try {
     const directory = await selectExportDirectory();
     if (!directory) {
       hideExportProgress();
-      notifyWarning('已取消导出。');
+      notifyWarning("已取消导出。");
       return;
     }
-    showExportProgress('正在准备导出内容...', 15);
+    showExportProgress("正在准备导出内容...", 15);
     const fileName = getExportFileName();
-    if (type === 'markdown') {
-      showExportProgress('正在导出 markdown...', 65);
+    if (type === "markdown") {
+      showExportProgress("正在导出 markdown...", 65);
       await waitForPaint();
-      await writeTextFile(joinPath(directory, `${fileName}.md`), cherry?.getMarkdown?.() ?? '');
-      completeExportProgress('导出 markdown 成功');
-      notifySuccess('导出 markdown 成功');
+      await writeTextFile(
+        joinPath(directory, `${fileName}.md`),
+        cherry?.getMarkdown?.() ?? "",
+      );
+      completeExportProgress("导出 markdown 成功");
+      notifySuccess("导出 markdown 成功");
       return;
     }
-    if (type === 'html') {
-      showExportProgress('正在导出 html...', 65);
+    if (type === "html") {
+      showExportProgress("正在导出 html...", 65);
       await waitForPaint();
-      await writeTextFile(joinPath(directory, `${fileName}.html`), cherry?.previewer?.getValue?.() ?? '');
-      completeExportProgress('导出 html 成功');
-      notifySuccess('导出 html 成功');
+      await writeTextFile(
+        joinPath(directory, `${fileName}.html`),
+        cherry?.previewer?.getValue?.() ?? "",
+      );
+      completeExportProgress("导出 html 成功");
+      notifySuccess("导出 html 成功");
       return;
     }
-    if (type === 'pdf') {
-      showExportProgress('正在生成 PDF...', 72);
+    if (type === "pdf") {
+      showExportProgress("正在生成 PDF...", 72);
       await waitForPaint();
       const previewElement = getExportPreviewElement();
       try {
         const pdfBytes = await exportPDF(previewElement as HTMLElement);
         if (!pdfBytes || pdfBytes.length < 100) {
-          throw new Error('PDF 内容生成失败：未生成有效 PDF 数据');
+          throw new Error("PDF 内容生成失败：未生成有效 PDF 数据");
         }
-        showExportProgress('正在写入 PDF 文件...', 92);
+        showExportProgress("正在写入 PDF 文件...", 92);
         await waitForPaint();
         await writeFile(joinPath(directory, `${fileName}.pdf`), pdfBytes);
-        completeExportProgress('导出 PDF 成功');
+        completeExportProgress("导出 PDF 成功");
         notifySuccess(`导出 PDF 成功：${fileName}.pdf`);
       } finally {
         previewElement.parentElement?.remove();
@@ -307,49 +374,54 @@ const exportEditorFile = async (type: 'pdf' | 'screenShot' | 'markdown' | 'html'
 
     const { canvas, cleanup } = await renderExportCanvas();
     try {
-      showExportProgress('正在生成长图...', 75);
+      showExportProgress("正在生成长图...", 75);
       await waitForPaint();
-      await writeFile(joinPath(directory, `${fileName}.png`), dataUrlToBytes(canvas.toDataURL('image/png')));
-      completeExportProgress('导出长图成功');
-      notifySuccess('导出长图成功');
+      await writeFile(
+        joinPath(directory, `${fileName}.png`),
+        dataUrlToBytes(canvas.toDataURL("image/png")),
+      );
+      completeExportProgress("导出长图成功");
+      notifySuccess("导出长图成功");
     } finally {
       cleanup();
     }
   } catch (error) {
     hideExportProgress();
-    notifyError(`导出失败: ${error instanceof Error ? error.message : String(error)}`);
+    notifyError(
+      `导出失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 };
 
-const customEditorExport = Cherry.createMenuHook('导出', {
-  iconName: 'export',
+const customEditorExport = Cherry.createMenuHook("导出", {
+  iconName: "export",
   subMenuConfig: [
     {
       noIcon: true,
-      name: '导出PDF',
+      name: "导出PDF",
       onclick(this: any) {
-        return exportEditorFile('pdf', this.$cherry);
+        return exportEditorFile("pdf", this.$cherry);
       },
     },
     {
       noIcon: true,
-      name: '导出长图',
+      name: "导出长图",
       onclick(this: any) {
-        return exportEditorFile('screenShot', this.$cherry);
+        return exportEditorFile("screenShot", this.$cherry);
       },
     },
     {
       noIcon: true,
-      name: '导出markdown',
+      name: "导出markdown",
       onclick(this: any) {
-        return exportEditorFile('markdown', this.$cherry);
+        return exportEditorFile("markdown", this.$cherry);
       },
     },
     {
       noIcon: true,
-      name: '导出html',
+      name: "导出html",
       onclick(this: any) {
-        return exportEditorFile('html', this.$cherry);
+        return exportEditorFile("html", this.$cherry);
       },
     },
   ],
@@ -359,7 +431,7 @@ const customEditorExport = Cherry.createMenuHook('导出', {
 });
 
 const cherryConfig: CherryOptions<CustomConfig> = {
-  id: 'markdown-editor',
+  id: "markdown-editor",
   // 第三方包
   externals: {
     // externals
@@ -368,7 +440,7 @@ const cherryConfig: CherryOptions<CustomConfig> = {
   },
   // chatGpt的openai配置
   openai: {
-    apiKey: '', // apiKey
+    apiKey: "", // apiKey
     // proxy: {
     //   host: '127.0.0.1',
     //   port: '7890',
@@ -388,15 +460,15 @@ const cherryConfig: CherryOptions<CustomConfig> = {
     syntax: {
       link: {
         /** 生成的<a>标签追加target属性的默认值 空：在<a>标签里不会追加target属性， _blank：在<a>标签里追加target="_blank"属性 */
-        target: '_blank',
+        target: "_blank",
         /** 生成的<a>标签追加rel属性的默认值 空：在<a>标签里不会追加rel属性， nofollow：在<a>标签里追加rel="nofollow：在"属性*/
-        rel: '',
+        rel: "",
       },
       autoLink: {
         /** 生成的<a>标签追加target属性的默认值 空：在<a>标签里不会追加target属性， _blank：在<a>标签里追加target="_blank"属性 */
-        target: '_blank',
+        target: "_blank",
         /** 生成的<a>标签追加rel属性的默认值 空：在<a>标签里不会追加rel属性， nofollow：在<a>标签里追加rel="nofollow：在"属性*/
-        rel: '',
+        rel: "",
         /** 是否开启短链接 */
         enableShortLink: true,
         /** 短链接长度 */
@@ -463,12 +535,12 @@ const cherryConfig: CherryOptions<CustomConfig> = {
         needWhitespace: false,
       },
       mathBlock: {
-        engine: 'katex', // katex或MathJax
-        src: '',
+        engine: "katex", // katex或MathJax
+        src: "",
       },
       inlineMath: {
-        engine: 'katex', // katex或MathJax
-        src: '',
+        engine: "katex", // katex或MathJax
+        src: "",
       },
       toc: {
         /** 默认只渲染一个目录 */
@@ -483,31 +555,31 @@ const cherryConfig: CherryOptions<CustomConfig> = {
          *  - autonumber    标题前面有自增序号锚点
          *  - none          标题没有锚点
          */
-        anchorStyle: 'none',
+        anchorStyle: "none",
       },
     },
   },
   editor: {
-    id: 'code', // textarea 的id属性值
-    name: 'code', // textarea 的name属性值
+    id: "code", // textarea 的id属性值
+    name: "code", // textarea 的name属性值
     autoSave2Textarea: false, // 是否自动将编辑区的内容回写到textarea里
     // 编辑器的高度，默认100%，如果挂载点存在内联设置的height则以内联样式为主
-    height: '100%',
+    height: "100%",
     // defaultModel 编辑器初始化后的默认模式，一共有三种模式：1、双栏编辑预览模式；2、纯编辑模式；3、预览模式
     // edit&preview: 双栏编辑预览模式
     // editOnly: 纯编辑模式（没有预览，可通过toolbar切换成双栏或预览模式）
     // previewOnly: 预览模式（没有编辑框，toolbar只显示“返回编辑”按钮，可通过toolbar切换成编辑模式）
-    defaultModel: 'edit&preview',
+    defaultModel: "edit&preview",
     // 粘贴时是否自动将html转成markdown
     convertWhenPaste: true,
     // 快捷键风格，目前仅支持 sublime 和 vim
-    keyMap: 'sublime',
+    keyMap: "sublime",
     codemirror: {
       // 是否自动focus 默认为true
       autofocus: false,
-      placeholder: '输入文本或「/」开始编辑',
+      placeholder: "输入文本或「/」开始编辑",
     },
-    writingStyle: 'normal', // 书写风格，normal 普通 | typewriter 打字机 | focus 专注，默认normal
+    writingStyle: "normal", // 书写风格，normal 普通 | typewriter 打字机 | focus 专注，默认normal
     keepDocumentScrollAfterInit: false, // 在初始化后是否保持网页的滚动，true：保持滚动；false：网页自动滚动到cherry初始化的位置
     showFullWidthMark: true, // 是否高亮全角符号 ·|￥|、|：|“|”|【|】|（|）|《|》
     showSuggestList: true, // 是否显示联想框
@@ -515,90 +587,109 @@ const cherryConfig: CherryOptions<CustomConfig> = {
   },
   toolbars: {
     toolbar: [
-      'bold',
-      'italic',
+      "bold",
+      "italic",
       {
-        strikethrough: ['strikethrough', 'underline', 'sub', 'sup', 'ruby'],
+        strikethrough: ["strikethrough", "underline", "sub", "sup", "ruby"],
       },
-      'size',
-      '|',
-      'color',
-      'header',
+      "size",
+      "|",
+      "color",
+      "header",
       // '|',
       // 'drawIo',
-      '|',
-      'ol',
-      'ul',
-      'checklist',
-      'panel',
+      "|",
+      "ol",
+      "ul",
+      "checklist",
+      "panel",
       // 'align',
-      'detail',
-      '|',
+      "detail",
+      "|",
       {
         insert: [
           // 'image',
           // 'audio',
           // 'video',
           // 'link',
-          'hr',
-          'br',
-          'code',
+          "hr",
+          "br",
+          "code",
           // 'inlineCode',
           // 'formula',
-          'toc',
-          'table',
+          "toc",
+          "table",
           // 'pdf',
           // 'word',
           // 'file',
         ],
       },
-      'formula',
-      'image',
-      'graph',
+      "formula",
+      "image",
+      "graph",
       // 'proTable',
-      '|',
+      "|",
       // 'search',
       // 'shortcutKey',
     ],
-    toolbarRight: ['customSave', 'customEditorExport', '|', 'wordCount'] as any[],
-    bubble: ['bold', 'italic', 'underline', 'strikethrough', 'sub', 'sup', 'quote', 'ruby', '|', 'size', 'color'], // array or false
-    sidebar: ['mobilePreview', 'copy', 'theme', 'customViewMode'],
+    toolbarRight: [
+      "customSave",
+      "customEditorExport",
+      "customMetadataPanel",
+      "|",
+      "wordCount",
+    ] as any[],
+    bubble: [
+      "bold",
+      "italic",
+      "underline",
+      "strikethrough",
+      "sub",
+      "sup",
+      "quote",
+      "ruby",
+      "|",
+      "size",
+      "color",
+    ], // array or false
+    sidebar: ["mobilePreview", "copy", "theme", "customViewMode"],
     // sidebar: ['mobilePreview', 'copy', 'theme', 'customViewMode', 'codeTheme'],
     toc: {
       updateLocationHash: false, // 要不要更新URL的hash
-      defaultModel: 'full', // pure: 精简模式/缩略模式，只有一排小点； full: 完整模式，会展示所有标题
+      defaultModel: "full", // pure: 精简模式/缩略模式，只有一排小点； full: 完整模式，会展示所有标题
     },
     customMenu: {
       customSave,
       customEditorExport,
       customViewMode,
+      customMetadataPanel,
     },
     config: {
       // 地图表格配置 - 支持自定义地图数据源URL
       mapTable: {
         sourceUrl: [
           // 在线高质量地图数据源（优先）
-          'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
+          "https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json",
           // 本地备用地图数据（公共资源目录）
-          '/data/china.json',
+          "/data/china.json",
         ],
       },
     },
   },
   // 打开draw.io编辑页的url，如果为空则drawio按钮失效
-  drawioIframeUrl: '../utils/drawio/drawio_demo.html',
+  drawioIframeUrl: "../utils/drawio/drawio_demo.html",
   // drawio iframe的样式
-  drawioIframeStyle: 'border: none;',
+  drawioIframeStyle: "border: none;",
   /**
    * 上传文件的时候用来指定文件类型
    */
   fileTypeLimitMap: {
-    video: 'video/*',
-    audio: 'audio/*',
-    image: 'image/*',
-    word: '.doc,.docx',
-    pdf: '.pdf',
-    file: '*',
+    video: "video/*",
+    audio: "audio/*",
+    image: "image/*",
+    word: ".doc,.docx",
+    pdf: ".pdf",
+    file: "*",
   },
   /**
    * 上传文件的时候是否开启多选
@@ -613,7 +704,7 @@ const cherryConfig: CherryOptions<CustomConfig> = {
   },
   previewer: {
     dom: false,
-    className: 'workgaga',
+    className: "workgaga",
     // 是否启用预览区域编辑能力（目前支持编辑图片尺寸、编辑表格内容）
     enablePreviewerBubble: true,
     floatWhenClosePreviewer: false,
@@ -629,7 +720,7 @@ const cherryConfig: CherryOptions<CustomConfig> = {
      */
     lazyLoadImg: {
       // 加载图片时如果需要展示loading图，则配置loading图的地址
-      loadingImgPath: '',
+      loadingImgPath: "",
       // 同一时间最多有几个图片请求，最大同时加载6张图片
       maxNumPerTime: 2,
       // 不进行懒加载处理的图片数量，如果为0，即所有图片都进行懒加载处理， 如果设置为-1，则所有图片都不进行懒加载处理
@@ -655,22 +746,22 @@ const cherryConfig: CherryOptions<CustomConfig> = {
     changeString2Pinyin: toPinyin,
   },
   /** 定义cherry缓存的作用范围，相同nameSpace的实例共享localStorage缓存 */
-  nameSpace: 'cherry',
+  nameSpace: "cherry",
   themeSettings: {
     // 主题列表，用于切换主题
     themeList: [
-      { className: 'default', label: '默认' }, // 曾用名：light 明亮
-      { className: 'dark', label: '暗黑' },
-      { className: 'gray', label: '沉稳' },
-      { className: 'abyss', label: '深海' },
-      { className: 'green', label: '清新' },
-      { className: 'red', label: '热情' },
-      { className: 'violet', label: '淡雅' },
-      { className: 'blue', label: '清幽' },
+      { className: "default", label: "默认" }, // 曾用名：light 明亮
+      { className: "dark", label: "暗黑" },
+      { className: "gray", label: "沉稳" },
+      { className: "abyss", label: "深海" },
+      { className: "green", label: "清新" },
+      { className: "red", label: "热情" },
+      { className: "violet", label: "淡雅" },
+      { className: "blue", label: "清幽" },
     ],
-    mainTheme: 'default',
-    codeBlockTheme: 'twilight',
-    inlineCodeTheme: 'red', // red or black
+    mainTheme: "default",
+    codeBlockTheme: "twilight",
+    inlineCodeTheme: "red", // red or black
   },
   // 预览页面不需要绑定事件
   isPreviewOnly: false,
@@ -679,7 +770,7 @@ const cherryConfig: CherryOptions<CustomConfig> = {
   // 外层容器不存在时，是否强制输出到body上
   forceAppend: false,
   // The locale Cherry is going to use. Locales live in /src/locales/
-  locale: 'zh_CN',
+  locale: "zh_CN",
   // Supplementary locales
   locales: {},
   // cherry初始化后是否检查 location.hash 尝试滚动到对应位置
