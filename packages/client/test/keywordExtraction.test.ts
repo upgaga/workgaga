@@ -42,6 +42,55 @@ describe("keyword extraction", () => {
     );
   });
 
+  it("round-trips hierarchical keywords and replaces YAML block lists", () => {
+    const content = [
+      "---",
+      "keywords:",
+      "  - name: 知识图谱",
+      "  - name: 节点",
+      "    parent: 知识图谱",
+      "title: Demo",
+      "---",
+      "Body",
+    ].join("\n");
+    expect(parseFrontmatterKeywords(content)).toEqual([
+      {
+        text: "知识图谱",
+        normalized: "知识图谱",
+        source: "frontmatter",
+      },
+      {
+        text: "节点",
+        normalized: "节点",
+        parent: "知识图谱",
+        parentNormalized: "知识图谱",
+        source: "frontmatter",
+      },
+    ]);
+    const written = writeFrontmatterKeywords(content, [
+      { text: "知识图谱" },
+      { text: "节点", parent: "知识图谱" },
+    ]);
+    expect(written).toContain(
+      'keywords: ["知识图谱", { name: "节点", parent: "知识图谱" }]',
+    );
+    expect(written).not.toContain("  - name:");
+    expect(parseFrontmatterKeywords(written)[1]).toMatchObject({
+      text: "节点",
+      parent: "知识图谱",
+    });
+  });
+
+  it("preserves BOM and CRLF when writing hierarchical keywords", () => {
+    const content = "\uFEFF---\r\ntitle: Demo\r\n---\r\nBody";
+    const written = writeFrontmatterKeywords(content, [
+      { text: "父级" },
+      { text: "子级", parent: "父级" },
+    ]);
+    expect(written.startsWith("\uFEFF---\r\n")).toBe(true);
+    expect(parseFrontmatterKeywords(written)).toHaveLength(2);
+  });
+
   it("parses and writes normalized frontmatter tags", () => {
     expect(parseFrontmatterTags("---\ntags: [#one, 'two, three']\n---\nBody")).toEqual([
       "one",

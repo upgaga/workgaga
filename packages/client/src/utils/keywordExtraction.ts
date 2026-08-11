@@ -247,7 +247,7 @@ export const writeFrontmatterTags = (
 export const parseFrontmatterKeywords = (
   content: string,
 ): KnowledgeKeyword[] => {
-  const lines = content.split(/\r?\n/);
+  const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
   if (lines[0]?.trim() !== "---") return [];
   const values: KnowledgeKeyword[] = [];
   for (let index = 1; index < lines.length; index += 1) {
@@ -259,8 +259,18 @@ export const parseFrontmatterKeywords = (
       for (let next = index + 1; next < lines.length; next += 1) {
         const item = lines[next].match(/^\s*-\s*(.+)$/);
         if (!item) break;
-        values.push(...parseKeywordValue(item[1]));
-        index = next;
+        let itemValue = item[1];
+        let consumed = next;
+        if (/^name\s*:/i.test(itemValue)) {
+          const parentLine = lines[next + 1]?.match(/^\s+parent\s*:\s*(.+)$/i);
+          if (parentLine) {
+            itemValue = `${itemValue} parent: ${parentLine[1]}`;
+            consumed = next + 1;
+          }
+        }
+        values.push(...parseKeywordValue(itemValue));
+        index = consumed;
+        next = consumed;
       }
       break;
     }
@@ -280,6 +290,9 @@ export const writeFrontmatterKeywords = (
   content: string,
   keywords: readonly (KnowledgeKeyword | string)[],
 ): string => {
+  const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
+  const normalizedContent = content.replace(/^\uFEFF/, "");
+  const newline = normalizedContent.includes("\r\n") ? "\r\n" : "\n";
   const values = keywords
     .map((keyword) => {
       if (typeof keyword === "string") return JSON.stringify(cleanKeyword(keyword));
@@ -291,7 +304,7 @@ export const writeFrontmatterKeywords = (
     })
     .filter((value) => value !== '""');
   const line = `keywords: [${values.join(", ")}]`;
-  const lines = content.split(/\r?\n/);
+  const lines = normalizedContent.split(/\r?\n/);
   if (lines[0]?.trim() === "---") {
     const end = lines.findIndex(
       (item, index) => index > 0 && item.trim() === "---",
@@ -303,13 +316,21 @@ export const writeFrontmatterKeywords = (
       );
       if (existing >= 0) {
         lines[existing] = line;
+        let blockEnd = existing + 1;
+        while (
+          blockEnd < end &&
+          (/^\s+-\s+/.test(lines[blockEnd]) || /^\s{2,}\w+\s*:/.test(lines[blockEnd]))
+        ) {
+          blockEnd += 1;
+        }
+        if (blockEnd > existing + 1) lines.splice(existing + 1, blockEnd - existing - 1);
       } else {
         lines.splice(end, 0, line);
       }
-      return lines.join("\n");
+      return `${bom}${lines.join(newline)}`;
     }
   }
-  return `---\n${line}\n---\n${content}`;
+  return `${bom}---${newline}${line}${newline}---${newline}${normalizedContent}`;
 };
 
 const addCandidate = (

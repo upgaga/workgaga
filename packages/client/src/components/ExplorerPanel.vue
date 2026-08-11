@@ -19,7 +19,7 @@
           <span class="vault-name">{{ knowledgeGraphStore.vaultName }}</span>
           <span v-if="knowledgeGraphStore.loading" class="status-pill">同步中</span>
         </button>
-        <div class="vault-meta">{{ documentNodes.length }} 篇文档 · {{ indexedTimeText }}</div>
+        <div class="vault-meta">{{ currentDocumentCount }} 篇文档 · {{ indexedTimeText }}</div>
       </section>
 
       <section v-if="documentsExpanded" class="document-section">
@@ -63,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { exists, remove, rename } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useFileStore, useKnowledgeGraphStore } from '../store';
@@ -171,17 +171,36 @@ const otherVaults = computed(() =>
   knowledgeGraphStore.vaults.filter((vault) => !isCurrentVault(vault.path)),
 );
 
+const countGraphDocuments = (nodes: KnowledgeGraphNode[]): number =>
+  new Set(
+    nodes
+      .filter((node) => node.exists && node.path)
+      .map((node) => normalizePath(node.path!).toLowerCase()),
+  ).size;
+
+const currentDocumentCount = computed(() => {
+  const currentPath = knowledgeGraphStore.vaultPath;
+  if (!currentPath) return 0;
+  const graphEntry = Object.entries(knowledgeGraphStore.graphByVault).find(
+    ([graphPath]) => normalizePath(graphPath) === normalizePath(currentPath),
+  );
+  if (graphEntry) return countGraphDocuments(graphEntry[1].nodes || []);
+  return knowledgeGraphStore.currentVault?.documentCount || 0;
+});
+
 const vaultDocumentCount = (path: string): number => {
   const graphEntry = Object.entries(knowledgeGraphStore.graphByVault).find(
     ([graphPath]) => normalizePath(graphPath) === normalizePath(path),
   );
-  const uniquePaths = new Set(
-    (graphEntry?.[1]?.nodes || [])
-      .filter((node) => node.exists && node.path)
-      .map((node) => normalizePath(node.path!).toLowerCase()),
-  );
-  return uniquePaths.size;
+  if (graphEntry) return countGraphDocuments(graphEntry[1].nodes || []);
+  return knowledgeGraphStore.vaults.find(
+    (vault) => normalizePath(vault.path) === normalizePath(path),
+  )?.documentCount || 0;
 };
+
+onMounted(() => {
+  void knowledgeGraphStore.ensureIndexed();
+});
 
 const isCurrentDocument = (path?: string): boolean =>
   Boolean(path && fileStore.currentFilePath && normalizePath(path) === normalizePath(fileStore.currentFilePath));

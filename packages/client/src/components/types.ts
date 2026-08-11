@@ -130,6 +130,7 @@ export interface KnowledgeVault {
   path: string;
   name: string;
   lastIndexedAt?: number;
+  documentCount?: number;
 }
 
 export interface KnowledgeKeyword {

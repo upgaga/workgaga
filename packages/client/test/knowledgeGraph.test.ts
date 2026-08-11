@@ -24,12 +24,14 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
 }));
 
 import {
+  analyzeKnowledgeGraphHierarchy,
   buildKnowledgeGraph,
   extractMarkdownMetadata,
   getIncomingKnowledgeGraphLinks,
   getKnowledgeGraphNeighborhood,
   indexKnowledgeVaultIncremental,
   mergeKnowledgeGraphData,
+  projectKnowledgeGraphHierarchy,
   summarizeKnowledgeFileChanges,
   type KnowledgeFileSnapshot,
 } from "../src/utils/knowledgeGraph";
@@ -173,6 +175,141 @@ describe("knowledge graph indexing", () => {
         evidence: ["frontmatter:keywords"],
       }),
     );
+  });
+
+  it("builds valid keyword hierarchy and rejects orphan or cyclic parents", () => {
+    const graph = buildKnowledgeGraph([
+      note("hierarchy.md", "", {
+        keywords: [
+          { text: "知识图谱", normalized: "知识图谱" },
+          {
+            text: "节点",
+            normalized: "节点",
+            parent: "知识图谱",
+            parentNormalized: "知识图谱",
+          },
+          {
+            text: "孤儿",
+            normalized: "孤儿",
+            parent: "不存在",
+            parentNormalized: "不存在",
+          },
+          { text: "循环 A", normalized: "循环 a", parent: "循环 B" },
+          { text: "循环 B", normalized: "循环 b", parent: "循环 A" },
+        ],
+      }),
+    ]);
+    expect(graph.links.filter((link) => link.type === "parent_of")).toEqual([
+      expect.objectContaining({
+        source: "keyword:知识图谱",
+        target: "keyword:节点",
+        raw: "知识图谱 → 节点",
+      }),
+    ]);
+    expect(graph.nodes.some((node) => node.id === "keyword:不存在")).toBe(false);
+  });
+
+  it("limits relationship filters to connected endpoints", () => {
+    const graph = buildKnowledgeGraph([
+      note("hierarchy.md", "", {
+        keywords: [
+          { text: "父级", normalized: "父级" },
+          { text: "子级", normalized: "子级", parent: "父级" },
+        ],
+        tags: ["无关标签"],
+      }),
+    ]);
+    const hierarchy = getKnowledgeGraphNeighborhood(graph, {
+      linkTypes: new Set(["parent_of"]),
+    });
+    expect(hierarchy.nodes.map((node) => node.id).sort()).toEqual([
+      "keyword:子级",
+      "keyword:父级",
+    ]);
+    expect(hierarchy.links).toHaveLength(1);
+  });
+
+  it("assigns stable levels for chains, branches, and independent roots", () => {
+    const graph = buildKnowledgeGraph([
+      note("hierarchy.md", "", {
+        keywords: [
+          { text: "根", normalized: "根" },
+          { text: "一级 A", normalized: "一级 a", parent: "根" },
+          { text: "一级 B", normalized: "一级 b", parent: "根" },
+          { text: "二级", normalized: "二级", parent: "一级 A" },
+          { text: "独立", normalized: "独立" },
+        ],
+      }),
+    ]);
+    const hierarchy = analyzeKnowledgeGraphHierarchy(graph);
+
+    expect(hierarchy.levels.get("hierarchy.md")).toBe(0);
+    expect(hierarchy.levels.get("keyword:根")).toBe(1);
+    expect(hierarchy.levels.get("keyword:一级 a")).toBe(2);
+    expect(hierarchy.levels.get("keyword:一级 b")).toBe(2);
+    expect(hierarchy.levels.get("keyword:二级")).toBe(3);
+    expect(hierarchy.levels.get("keyword:独立")).toBe(1);
+    expect(hierarchy.childIds.get("keyword:根")?.sort()).toEqual([
+      "keyword:一级 a",
+      "keyword:一级 b",
+    ]);
+    expect(hierarchy.maxLevel).toBe(3);
+  });
+
+  it("projects levels incrementally and collapses complete descendant branches", () => {
+    const graph = buildKnowledgeGraph([
+      note("hierarchy.md", "", {
+        keywords: [
+          { text: "根", normalized: "根" },
+          { text: "一级", normalized: "一级", parent: "根" },
+          { text: "二级", normalized: "二级", parent: "一级" },
+        ],
+      }),
+    ]);
+    const hierarchy = analyzeKnowledgeGraphHierarchy(graph);
+    const firstLevel = projectKnowledgeGraphHierarchy(graph, hierarchy, {
+      maxLevel: 1,
+    });
+    expect(firstLevel.nodes.map((node) => node.id).sort()).toEqual([
+      "hierarchy.md",
+      "keyword:根",
+    ]);
+    expect(firstLevel.links.every((link) =>
+      firstLevel.nodes.some((node) => node.id === link.source) &&
+      firstLevel.nodes.some((node) => node.id === link.target),
+    )).toBe(true);
+
+    const collapsed = projectKnowledgeGraphHierarchy(graph, hierarchy, {
+      maxLevel: hierarchy.maxLevel,
+      collapsedNodeIds: new Set(["keyword:根"]),
+    });
+    expect(collapsed.nodes.map((node) => node.id).sort()).toEqual([
+      "hierarchy.md",
+      "keyword:根",
+    ]);
+    expect(collapsed.links.some((link) => link.target === "keyword:一级")).toBe(
+      false,
+    );
+  });
+
+  it("keeps hierarchy analysis bounded when cyclic input is supplied", () => {
+    const graph = {
+      nodes: [
+        { id: "a", name: "A", exists: true, category: "keyword" as const },
+        { id: "b", name: "B", exists: true, category: "keyword" as const },
+        { id: "root", name: "Root", exists: true, category: "keyword" as const },
+      ],
+      links: [
+        { source: "a", target: "b", type: "parent_of" as const, raw: "A → B" },
+        { source: "b", target: "a", type: "parent_of" as const, raw: "B → A" },
+      ],
+      indexedAt: 0,
+    };
+    const hierarchy = analyzeKnowledgeGraphHierarchy(graph);
+    expect(hierarchy.roots).toEqual(["root"]);
+    expect([...hierarchy.cyclicNodeIds].sort()).toEqual(["a", "b"]);
+    expect(hierarchy.levels.get("a")).toBe(0);
+    expect(hierarchy.levels.get("b")).toBe(0);
   });
 
   it("adds heading and tag nodes with semantic links", () => {

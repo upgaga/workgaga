@@ -65,6 +65,10 @@ const loadVaults = (): KnowledgeVault[] => {
           typeof item.lastIndexedAt === "number"
             ? item.lastIndexedAt
             : undefined,
+        documentCount:
+          typeof item.documentCount === "number"
+            ? item.documentCount
+            : undefined,
       }));
   } catch (error) {
     console.warn("加载知识库列表失败:", error);
@@ -174,16 +178,21 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
   },
 
   actions: {
-    upsertKnowledgeBase(path: string, lastIndexedAt?: number) {
+    upsertKnowledgeBase(
+      path: string,
+      lastIndexedAt?: number,
+      documentCount?: number,
+    ) {
       const normalizedPath = normalizePath(path);
       const existingIndex = this.vaults.findIndex(
         (vault) => normalizePath(vault.path) === normalizedPath,
       );
-      const vault = {
+      const vault: KnowledgeVault = {
         path,
         name: getKnowledgeBaseName(path),
-        lastIndexedAt,
       };
+      if (lastIndexedAt !== undefined) vault.lastIndexedAt = lastIndexedAt;
+      if (documentCount !== undefined) vault.documentCount = documentCount;
 
       if (existingIndex >= 0) {
         this.vaults[existingIndex] = {
@@ -294,7 +303,11 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
         this.scanWarnings = graphData.indexStats.warnings;
         this.lastIndexedAt = graphData.indexedAt;
         successfulGraphs.forEach(({ vaultPath, graph }) =>
-          this.upsertKnowledgeBase(vaultPath, graph.indexedAt),
+          this.upsertKnowledgeBase(
+            vaultPath,
+            graph.indexedAt,
+            graph.notes?.length || 0,
+          ),
         );
         saveLastIndexedAt(graphData.indexedAt);
       } catch (error) {
@@ -321,9 +334,14 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
       this.error = null;
 
       try {
-        const vaultsToIndex = this.vaults.length ? this.vaults : [
-          { path: this.vaultPath, name: getKnowledgeBaseName(this.vaultPath) },
-        ];
+        const vaultsToIndex = this.vaults.length
+          ? this.vaults
+          : [
+              {
+                path: this.vaultPath,
+                name: getKnowledgeBaseName(this.vaultPath),
+              },
+            ];
         const results = await Promise.all(
           vaultsToIndex.map(async (vault) => ({
             vaultPath: vault.path,
@@ -347,9 +365,16 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
             size: note.size || 0,
             mtime: note.mtime ?? null,
           }));
+          this.upsertKnowledgeBase(
+            vaultPath,
+            graph.indexedAt,
+            graph.notes?.length || 0,
+          );
         });
-        this.fileSnapshots = this.fileSnapshotsByVault[normalizePath(this.vaultPath)] || [];
+        this.fileSnapshots =
+          this.fileSnapshotsByVault[normalizePath(this.vaultPath)] || [];
         this.lastIndexedAt = graphData.indexedAt;
+        saveLastIndexedAt(graphData.indexedAt);
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
       } finally {
@@ -367,6 +392,12 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
 
     async switchKnowledgeBase(path: string) {
       await this.setVault(path);
+    },
+
+    async ensureIndexed() {
+      if (!this.vaultPath) return;
+      const key = normalizePath(this.vaultPath);
+      if (!this.graphByVault[key]) await this.indexVault();
     },
 
     closeKnowledgeBase() {

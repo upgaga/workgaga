@@ -119,6 +119,9 @@
                 {{ parent.text }}
               </option>
             </select>
+            <span v-if="keywordValidationMessage" class="keyword-validation">
+              {{ keywordValidationMessage }}
+            </span>
             <button type="submit">确定</button><button type="button" class="secondary" @click="cancelEditing">
               取消
             </button>
@@ -128,24 +131,29 @@
           </div>
           <ul v-else class="keyword-list">
             <li
-              v-for="keyword in keywordList"
-              :key="keyword.normalized || keyword.text"
+              v-for="item in keywordTree"
+              :key="item.keyword.normalized || item.keyword.text"
+              :style="{ '--keyword-depth': item.depth }"
             >
+              <span class="keyword-tree-branch" aria-hidden="true">
+                {{ item.depth > 0 ? "└" : "" }}
+              </span>
               <span class="keyword-text">
-                {{ keyword.parent ? `└ ${keyword.text}` : keyword.text }}
-                <small v-if="keyword.parent">父级：{{ keyword.parent }}</small>
+                {{ item.keyword.text }}
+                <small v-if="item.keyword.parent">父级：{{ item.keyword.parent }}</small>
+                <small v-if="item.childCount">子级：{{ item.childCount }}</small>
               </span>
               <span class="keyword-actions"
                 ><button
                   title="编辑关键词"
                   aria-label="编辑关键词"
-                  @click="startEditing(keyword.text)"
+                  @click="startEditing(item.keyword.text)"
                 >
                   编辑</button
                 ><button
                   title="删除关键词"
                   aria-label="删除关键词"
-                  @click="removeKeyword(keyword.text)"
+                  @click="removeKeyword(item.keyword.text)"
                 >
                   删除
                 </button></span
@@ -246,6 +254,7 @@ const editing = ref(false);
 const editingText = ref("");
 const editingOriginal = ref<string | null>(null);
 const editingParent = ref("");
+const keywordValidationMessage = ref("");
 const tagEditing = ref(false);
 const tagEditingText = ref("");
 const tagEditingOriginal = ref<string | null>(null);
@@ -257,12 +266,73 @@ const deletedTag = ref<string | null>(null);
 let undoTimer: ReturnType<typeof setTimeout> | undefined;
 
 const keywordList = computed(() => props.keywords);
+const keywordTree = computed(() => {
+  const byId = new Map(
+    props.keywords.map((keyword) => [
+      normalizeKeyword(keyword.normalized || keyword.text),
+      keyword,
+    ]),
+  );
+  const children = new Map<string, KnowledgeKeyword[]>();
+  const roots: KnowledgeKeyword[] = [];
+  props.keywords.forEach((keyword) => {
+    const parentId = normalizeKeyword(
+      keyword.parentNormalized || keyword.parent || "",
+    );
+    if (!parentId || !byId.has(parentId)) {
+      roots.push(keyword);
+      return;
+    }
+    children.set(parentId, [...(children.get(parentId) || []), keyword]);
+  });
+  const result: Array<{
+    keyword: KnowledgeKeyword;
+    depth: number;
+    childCount: number;
+  }> = [];
+  const visited = new Set<string>();
+  const append = (keyword: KnowledgeKeyword, depth: number): void => {
+    const id = normalizeKeyword(keyword.normalized || keyword.text);
+    if (!id || visited.has(id)) return;
+    visited.add(id);
+    const childItems = children.get(id) || [];
+    result.push({ keyword, depth, childCount: childItems.length });
+    childItems.forEach((child) => append(child, depth + 1));
+  };
+  roots.forEach((keyword) => append(keyword, 0));
+  props.keywords.forEach((keyword) => append(keyword, 0));
+  return result;
+});
+
+const getDescendantIds = (rootId: string): Set<string> => {
+  const descendants = new Set<string>();
+  if (!rootId) return descendants;
+  const queue = [rootId];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current) continue;
+    props.keywords.forEach((keyword) => {
+      const keywordId = normalizeKeyword(keyword.normalized || keyword.text);
+      const parentId = normalizeKeyword(
+        keyword.parentNormalized || keyword.parent || "",
+      );
+      if (parentId === current && !descendants.has(keywordId)) {
+        descendants.add(keywordId);
+        queue.push(keywordId);
+      }
+    });
+  }
+  return descendants;
+};
+
 const parentKeywordOptions = computed(() =>
-  props.keywords.filter(
-    (keyword) =>
-      normalizeKeyword(keyword.text) !==
-      normalizeKeyword(editingText.value || editingOriginal.value || ""),
-  ),
+  props.keywords.filter((keyword) => {
+    const currentId = normalizeKeyword(
+      editingOriginal.value || editingText.value || "",
+    );
+    const keywordId = normalizeKeyword(keyword.normalized || keyword.text);
+    return keywordId !== currentId && !getDescendantIds(currentId).has(keywordId);
+  }),
 );
 const extractionEnabled = computed(
   () => aiAssistantStore.settings.keywordExtractionEnabled,
@@ -362,6 +432,7 @@ const startAdding = () => {
   editingOriginal.value = null;
   editingText.value = "";
   editingParent.value = "";
+  keywordValidationMessage.value = "";
   editing.value = true;
 };
 
@@ -372,6 +443,7 @@ const startEditing = (text: string) => {
   editingOriginal.value = text;
   editingText.value = text;
   editingParent.value = keyword?.parentNormalized || keyword?.parent || "";
+  keywordValidationMessage.value = "";
   editing.value = true;
 };
 
@@ -380,6 +452,7 @@ const cancelEditing = () => {
   editingText.value = "";
   editingOriginal.value = null;
   editingParent.value = "";
+  keywordValidationMessage.value = "";
 };
 
 const startAddingTag = () => {
@@ -434,36 +507,76 @@ const submitKeyword = () => {
   const text = editingText.value.trim();
   if (!text) return;
   const normalized = normalizeKeyword(text);
-  const next = props.keywords.filter(
+  const originalId = normalizeKeyword(editingOriginal.value || "");
+  const duplicate = props.keywords.some(
     (keyword) =>
-      normalizeKeyword(keyword.text) !==
-      normalizeKeyword(editingOriginal.value || ""),
+      normalizeKeyword(keyword.normalized || keyword.text) === normalized &&
+      normalizeKeyword(keyword.normalized || keyword.text) !== originalId,
   );
-  if (!next.some((keyword) => normalizeKeyword(keyword.text) === normalized)) {
-    const parent = props.keywords.find(
-      (keyword) =>
-        normalizeKeyword(keyword.normalized || keyword.text) ===
-        normalizeKeyword(editingParent.value),
-    );
-    if (editingParent.value && !parent) return;
-    next.push({
-      text,
-      normalized,
-      source: "frontmatter",
-      ...(parent ? { parent: parent.text, parentNormalized: normalizeKeyword(parent.text) } : {}),
-    });
+  if (duplicate) {
+    keywordValidationMessage.value = "同一文档内不能创建重复关键词";
+    return;
   }
+  const parentId = normalizeKeyword(editingParent.value);
+  const parent = props.keywords.find(
+    (keyword) =>
+      normalizeKeyword(keyword.normalized || keyword.text) === parentId,
+  );
+  if (parentId && !parent) {
+    keywordValidationMessage.value = "父关键词不存在";
+    return;
+  }
+  if (parentId && (parentId === originalId || getDescendantIds(originalId).has(parentId))) {
+    keywordValidationMessage.value = "不能将当前关键词或其子级设为父级";
+    return;
+  }
+  const original = props.keywords.find(
+    (keyword) => normalizeKeyword(keyword.normalized || keyword.text) === originalId,
+  );
+  const updated: KnowledgeKeyword = {
+    ...original,
+    text,
+    normalized,
+    source: "frontmatter",
+    ...(parent
+      ? {
+          parent: parent.text,
+          parentNormalized: normalizeKeyword(parent.normalized || parent.text),
+        }
+      : { parent: undefined, parentNormalized: undefined }),
+  };
+  const next = props.keywords
+    .filter(
+      (keyword) => normalizeKeyword(keyword.normalized || keyword.text) !== originalId,
+    )
+    .map((keyword) => {
+      const keywordParentId = normalizeKeyword(
+        keyword.parentNormalized || keyword.parent || "",
+      );
+      return originalId && keywordParentId === originalId
+        ? { ...keyword, parent: text, parentNormalized: normalized }
+        : keyword;
+    });
+  next.push(updated);
   emit("update:keywords", next);
   cancelEditing();
   refreshCandidates();
 };
 
 const removeKeyword = (text: string) => {
+  const removedId = normalizeKeyword(text);
   emit(
     "update:keywords",
-    props.keywords.filter(
-      (keyword) => normalizeKeyword(keyword.text) !== normalizeKeyword(text),
-    ),
+    props.keywords
+      .filter(
+        (keyword) => normalizeKeyword(keyword.text) !== removedId,
+      )
+      .map((keyword) =>
+        normalizeKeyword(keyword.parentNormalized || keyword.parent || "") ===
+        removedId
+          ? { ...keyword, parent: undefined, parentNormalized: undefined }
+          : keyword,
+      ),
   );
   refreshCandidates();
 };
@@ -602,8 +715,14 @@ button:disabled {
 }
 .keyword-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 8px;
+}
+.keyword-validation {
+  flex-basis: 100%;
+  color: #dc2626;
+  font-size: 11px;
 }
 input {
   min-width: 0;
@@ -640,6 +759,20 @@ input {
 .candidate-list li {
   padding: 7px 0;
   border-bottom: 1px solid #f3f4f6;
+}
+.keyword-list li {
+  padding-left: calc(var(--keyword-depth) * 16px);
+}
+.keyword-tree-branch {
+  flex: 0 0 12px;
+  color: #0891b2;
+  font-size: 12px;
+}
+.keyword-list .keyword-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
 }
 .candidate-list li {
   align-items: flex-start;

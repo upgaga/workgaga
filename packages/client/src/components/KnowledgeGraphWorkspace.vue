@@ -84,6 +84,21 @@
               >暂无反向链接</span
             >
           </section>
+          <section class="details-section">
+            <h3>关联下级</h3>
+            <button
+              v-for="link in outgoingLinks"
+              :key="`${link.target}-${link.type}-${link.raw}`"
+              class="related-item"
+              @click="handleNodeSelected(link.target)"
+            >
+              {{ linkTypeLabel(link.type) }} ·
+              {{ nodeById.get(link.target)?.name || link.target }}
+            </button>
+            <span v-if="outgoingLinks.length === 0" class="details-empty"
+              >暂无关联下级</span
+            >
+          </section>
         </template>
         <div v-else class="details-placeholder">
           <strong>节点详情</strong>
@@ -186,14 +201,45 @@ import type {
 } from "./types";
 
 const graphStore = useKnowledgeGraphStore();
+const SELECTED_VAULT_PATHS_STORAGE_KEY =
+  "cherry_markdown_knowledge_graph_selected_vault_paths";
+
+const loadSelectedVaultPaths = (): string[] | null => {
+  try {
+    const stored = localStorage.getItem(SELECTED_VAULT_PATHS_STORAGE_KEY);
+    if (stored === null) return null;
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed)
+      ? parsed.filter((path): path is string => typeof path === "string")
+      : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+const storedSelectedVaultPaths = loadSelectedVaultPaths();
+const hasStoredVaultSelection = ref(storedSelectedVaultPaths !== null);
 const selectedVaultPaths = ref<string[]>(
-  graphStore.vaults.map((vault) => vault.path),
+  storedSelectedVaultPaths || graphStore.vaults.map((vault) => vault.path),
 );
+
+const saveSelectedVaultPaths = (): void => {
+  try {
+    localStorage.setItem(
+      SELECTED_VAULT_PATHS_STORAGE_KEY,
+      JSON.stringify(selectedVaultPaths.value),
+    );
+  } catch (_) {
+    return;
+  }
+};
 
 const toggleVault = (path: string): void => {
   selectedVaultPaths.value = selectedVaultPaths.value.includes(path)
     ? selectedVaultPaths.value.filter((item) => item !== path)
     : [...selectedVaultPaths.value, path];
+  hasStoredVaultSelection.value = true;
+  saveSelectedVaultPaths();
   selectedNodeId.value = null;
 };
 const selectedGraphs = computed(() =>
@@ -232,15 +278,12 @@ const selectedLinkCount = computed(
 watch(
   () => graphStore.vaults.map((vault) => vault.path),
   (paths) => {
+    if (paths.length === 0) return;
     const available = new Set(paths);
-    selectedVaultPaths.value = selectedVaultPaths.value.filter((path) =>
-      available.has(path),
-    );
-    paths.forEach((path) => {
-      if (!selectedVaultPaths.value.includes(path)) {
-        selectedVaultPaths.value.push(path);
-      }
-    });
+    selectedVaultPaths.value = hasStoredVaultSelection.value
+      ? selectedVaultPaths.value.filter((path) => available.has(path))
+      : [...paths];
+    if (hasStoredVaultSelection.value) saveSelectedVaultPaths();
   },
   { deep: true },
 );
@@ -249,7 +292,7 @@ const bottomTab = ref<"missing" | "backlinks" | "notes" | "logs">("missing");
 const selectedNodeId = ref<string | null>(null);
 const nodeById = computed(
   () =>
-    new Map((graphStore.graphData?.nodes || []).map((node) => [node.id, node])),
+    new Map((selectedGraphData.value?.nodes || []).map((node) => [node.id, node])),
 );
 const selectedNode = computed<KnowledgeGraphNode | null>(() =>
   selectedNodeId.value
@@ -258,24 +301,24 @@ const selectedNode = computed<KnowledgeGraphNode | null>(() =>
 );
 const incomingLinks = computed<KnowledgeGraphLink[]>(() =>
   selectedNodeId.value
-    ? (graphStore.graphData?.links || []).filter(
+    ? (selectedGraphData.value?.links || []).filter(
         (link) => link.target === selectedNodeId.value,
       )
     : [],
 );
 const outgoingLinks = computed<KnowledgeGraphLink[]>(() =>
   selectedNodeId.value
-    ? (graphStore.graphData?.links || []).filter(
+    ? (selectedGraphData.value?.links || []).filter(
         (link) => link.source === selectedNodeId.value,
       )
     : [],
 );
 const missingNodes = computed(() =>
-  (graphStore.graphData?.nodes || []).filter(
+  (selectedGraphData.value?.nodes || []).filter(
     (node) => node.category === "missing",
   ),
 );
-const noteList = computed(() => graphStore.graphData?.notes || []);
+const noteList = computed(() => selectedGraphData.value?.notes || []);
 const indexedTimeText = computed(() => {
   const indexedAt = graphStore.graphData?.indexedAt;
   return indexedAt ? new Date(indexedAt).toLocaleString() : "尚未索引";
@@ -293,6 +336,19 @@ const nodeTypeLabel = computed(() => {
     ? labels[selectedNode.value.category || "note"]
     : "";
 });
+
+const linkTypeLabel = (type: KnowledgeGraphLink["type"]): string => {
+  const labels: Record<KnowledgeGraphLink["type"], string> = {
+    wiki: "Wiki Link",
+    markdown: "Markdown Link",
+    contains: "标题层级",
+    tagged_with: "标签",
+    mentions: "关键词",
+    related_by_keyword: "共享关键词",
+    parent_of: "关键词层级",
+  };
+  return labels[type];
+};
 
 const handleNodeSelected = (nodeId: string): void => {
   selectedNodeId.value = nodeId;

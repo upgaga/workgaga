@@ -364,6 +364,114 @@ export interface KnowledgeGraphNeighborhoodOptions {
   linkTypes?: Set<KnowledgeGraphLink["type"]>;
 }
 
+export interface KnowledgeGraphHierarchy {
+  levels: Map<string, number>;
+  parentIds: Map<string, string[]>;
+  childIds: Map<string, string[]>;
+  roots: string[];
+  cyclicNodeIds: Set<string>;
+  maxLevel: number;
+}
+
+const HIERARCHY_LINK_TYPES = new Set<KnowledgeGraphLink["type"]>([
+  "contains",
+  "tagged_with",
+  "mentions",
+  "parent_of",
+]);
+
+export const analyzeKnowledgeGraphHierarchy = (
+  graph: KnowledgeGraphData,
+): KnowledgeGraphHierarchy => {
+  const nodeIds = new Set(graph.nodes.map((node) => node.id));
+  const parentIds = new Map<string, string[]>();
+  const childIds = new Map<string, string[]>();
+  const indegree = new Map(graph.nodes.map((node) => [node.id, 0]));
+
+  graph.links.forEach((link) => {
+    if (
+      !HIERARCHY_LINK_TYPES.has(link.type) ||
+      !nodeIds.has(link.source) ||
+      !nodeIds.has(link.target) ||
+      link.source === link.target
+    ) {
+      return;
+    }
+    const parents = parentIds.get(link.target) || [];
+    if (!parents.includes(link.source)) {
+      parentIds.set(link.target, [...parents, link.source]);
+      childIds.set(link.source, [
+        ...(childIds.get(link.source) || []),
+        link.target,
+      ]);
+      indegree.set(link.target, (indegree.get(link.target) || 0) + 1);
+    }
+  });
+
+  const roots = graph.nodes
+    .filter((node) => (indegree.get(node.id) || 0) === 0)
+    .map((node) => node.id)
+    .sort();
+  const queue = [...roots];
+  const levels = new Map(roots.map((id) => [id, 0]));
+  const remainingIndegree = new Map(indegree);
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current) continue;
+    const currentLevel = levels.get(current) || 0;
+    (childIds.get(current) || []).forEach((childId) => {
+      levels.set(childId, Math.max(levels.get(childId) || 0, currentLevel + 1));
+      const nextIndegree = (remainingIndegree.get(childId) || 0) - 1;
+      remainingIndegree.set(childId, nextIndegree);
+      if (nextIndegree === 0) queue.push(childId);
+    });
+  }
+
+  const cyclicNodeIds = new Set(
+    graph.nodes
+      .map((node) => node.id)
+      .filter((id) => !levels.has(id)),
+  );
+  cyclicNodeIds.forEach((id) => levels.set(id, 0));
+  const maxLevel = Math.max(0, ...levels.values());
+
+  return { levels, parentIds, childIds, roots, cyclicNodeIds, maxLevel };
+};
+
+export const projectKnowledgeGraphHierarchy = (
+  graph: KnowledgeGraphData,
+  hierarchy: KnowledgeGraphHierarchy,
+  options: { maxLevel?: number; collapsedNodeIds?: Set<string> } = {},
+): KnowledgeGraphData => {
+  const maxLevel = options.maxLevel ?? hierarchy.maxLevel;
+  const hiddenIds = new Set<string>();
+  const queue = [...(options.collapsedNodeIds || [])];
+  const visited = new Set<string>();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+    (hierarchy.childIds.get(current) || []).forEach((childId) => {
+      hiddenIds.add(childId);
+      queue.push(childId);
+    });
+  }
+  const nodes = graph.nodes.filter(
+    (node) =>
+      (hierarchy.levels.get(node.id) || 0) <= maxLevel &&
+      !hiddenIds.has(node.id),
+  );
+  const visibleIds = new Set(nodes.map((node) => node.id));
+  return {
+    ...graph,
+    nodes,
+    links: graph.links.filter(
+      (link) => visibleIds.has(link.source) && visibleIds.has(link.target),
+    ),
+  };
+};
+
 export const getKnowledgeGraphNeighborhood = (
   graph: KnowledgeGraphData,
   options: KnowledgeGraphNeighborhoodOptions = {},
@@ -375,7 +483,14 @@ export const getKnowledgeGraphNeighborhood = (
   const allowedIds = new Set<string>();
 
   if (!rootId) {
-    graph.nodes.forEach((node) => allowedIds.add(node.id));
+    if (linkTypes) {
+      links.forEach((link) => {
+        allowedIds.add(link.source);
+        allowedIds.add(link.target);
+      });
+    } else {
+      graph.nodes.forEach((node) => allowedIds.add(node.id));
+    }
   } else {
     const queue: Array<{ id: string; distance: number }> = [
       { id: rootId, distance: 0 },
@@ -537,6 +652,42 @@ export const buildKnowledgeGraph = (
   const keywordEvidence = new Map<string, Map<string, string>>();
 
   notes.forEach((note) => {
+    const activeKeywords = (note.keywords || []).filter(
+      (keyword) =>
+        keyword.status !== "ignored" && keyword.status !== "candidate",
+    );
+    const activeKeywordIds = new Set(
+      activeKeywords
+        .map((keyword) =>
+          normalizeKeyword(keyword.normalized || keyword.text),
+        )
+        .filter(Boolean),
+    );
+    const parentByKeyword = new Map<string, string>();
+    activeKeywords.forEach((keyword) => {
+      const childId = normalizeKeyword(keyword.normalized || keyword.text);
+      const parentId = normalizeKeyword(
+        keyword.parentNormalized || keyword.parent || "",
+      );
+      if (
+        childId &&
+        parentId &&
+        childId !== parentId &&
+        activeKeywordIds.has(parentId)
+      ) {
+        parentByKeyword.set(childId, parentId);
+      }
+    });
+    const hasParentCycle = (childId: string): boolean => {
+      const visited = new Set<string>([childId]);
+      let current = parentByKeyword.get(childId);
+      while (current) {
+        if (visited.has(current)) return true;
+        visited.add(current);
+        current = parentByKeyword.get(current);
+      }
+      return false;
+    };
     nodes.set(note.id, {
       id: note.id,
       name: note.title,
@@ -582,9 +733,7 @@ export const buildKnowledgeGraph = (
       });
     });
 
-    (note.keywords || []).forEach((keyword) => {
-      if (keyword.status === "ignored" || keyword.status === "candidate")
-        return;
+    activeKeywords.forEach((keyword) => {
       const normalized = normalizeKeyword(keyword.normalized || keyword.text);
       if (!normalized) return;
       const keywordId = `keyword:${normalized}`;
@@ -622,16 +771,13 @@ export const buildKnowledgeGraph = (
         const parentNormalized = normalizeKeyword(
           keyword.parentNormalized || keyword.parent || "",
         );
-        if (parentNormalized && parentNormalized !== normalized) {
+        if (
+          parentNormalized &&
+          parentNormalized !== normalized &&
+          activeKeywordIds.has(parentNormalized) &&
+          !hasParentCycle(normalized)
+        ) {
           const parentId = `keyword:${parentNormalized}`;
-          if (!nodes.has(parentId)) {
-            nodes.set(parentId, {
-              id: parentId,
-              name: keyword.parent || parentNormalized,
-              exists: true,
-              category: "keyword",
-            });
-          }
           links.set(`${parentId}->${keywordId}:parent_of`, {
             source: parentId,
             target: keywordId,

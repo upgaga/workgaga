@@ -67,6 +67,39 @@
         </div>
         <div class="graph-controls">
           <label>
+            布局
+            <select v-model="layoutMode">
+              <option value="hierarchy">分级布局</option>
+              <option value="force">关系布局</option>
+            </select>
+          </label>
+          <label v-if="layoutMode === 'hierarchy'">
+            展示层级
+            <select v-model.number="visibleHierarchyLevel">
+              <option
+                v-for="level in hierarchyLevelOptions"
+                :key="level"
+                :value="level"
+              >
+                0 - {{ level }} 层
+              </option>
+            </select>
+          </label>
+          <button
+            v-if="layoutMode === 'hierarchy'"
+            class="text-button"
+            @click="expandNextLevel"
+          >
+            展开下一层
+          </button>
+          <button
+            v-if="layoutMode === 'hierarchy' && collapsedNodeIds.size"
+            class="text-button"
+            @click="collapsedNodeIds = new Set()"
+          >
+            展开全部分支
+          </button>
+          <label>
             关系
             <select v-model="selectedLinkType">
               <option value="all">全部</option>
@@ -197,8 +230,10 @@ import type {
   KnowledgeGraphNodeCategory,
 } from "./types";
 import {
+  analyzeKnowledgeGraphHierarchy,
   getIncomingKnowledgeGraphLinks,
   getKnowledgeGraphNeighborhood,
+  projectKnowledgeGraphHierarchy,
 } from "../utils/knowledgeGraph";
 import { useKnowledgeGraphStore } from "../store/modal/knowledgeGraph";
 
@@ -223,6 +258,9 @@ const selectedNodeId = ref<string | null>(null);
 const selectedCategory = ref<KnowledgeGraphNodeCategory | "all">("all");
 const selectedLinkType = ref<KnowledgeGraphLinkType | "all">("all");
 const neighborhoodDepth = ref(0);
+const layoutMode = ref<"hierarchy" | "force">("force");
+const visibleHierarchyLevel = ref(1);
+const collapsedNodeIds = ref<Set<string>>(new Set());
 let chart: EChartsType | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let renderRequestId = 0;
@@ -248,7 +286,7 @@ const visibleGraph = computed(() => {
     selectedCategory.value === "all"
       ? undefined
       : new Set<KnowledgeGraphNodeCategory>([selectedCategory.value]);
-  return getKnowledgeGraphNeighborhood(graphData.value, {
+  const filtered = getKnowledgeGraphNeighborhood(graphData.value, {
     rootId: selectedNodeId.value || undefined,
     depth: selectedNodeId.value ? neighborhoodDepth.value : 0,
     categories,
@@ -257,7 +295,28 @@ const visibleGraph = computed(() => {
         ? undefined
         : new Set<KnowledgeGraphLinkType>([selectedLinkType.value]),
   });
+  if (layoutMode.value !== "hierarchy") return filtered;
+  const hierarchy = analyzeKnowledgeGraphHierarchy(filtered);
+  return projectKnowledgeGraphHierarchy(filtered, hierarchy, {
+    maxLevel: visibleHierarchyLevel.value,
+    collapsedNodeIds: collapsedNodeIds.value,
+  });
 });
+
+const hierarchy = computed(() =>
+  analyzeKnowledgeGraphHierarchy(
+    graphData.value || { nodes: [], links: [], indexedAt: 0 },
+  ),
+);
+const hierarchyLevelOptions = computed(() =>
+  Array.from({ length: hierarchy.value.maxLevel + 1 }, (_, level) => level),
+);
+const expandNextLevel = (): void => {
+  visibleHierarchyLevel.value = Math.min(
+    hierarchy.value.maxLevel,
+    visibleHierarchyLevel.value + 1,
+  );
+};
 
 const incomingLinks = computed(() =>
   selectedNodeId.value && graphData.value
@@ -308,6 +367,29 @@ const chartOption = computed<EChartsOption>(() => {
     degree.set(link.source, (degree.get(link.source) || 0) + 1);
     degree.set(link.target, (degree.get(link.target) || 0) + 1);
   });
+  const currentHierarchy = analyzeKnowledgeGraphHierarchy({
+    nodes: dedupNodes,
+    links: dedupLinks,
+    indexedAt: graphData.value?.indexedAt || 0,
+  });
+  const nodesByLevel = new Map<number, typeof dedupNodes>();
+  dedupNodes.forEach((node) => {
+    const level = currentHierarchy.levels.get(node.id) || 0;
+    nodesByLevel.set(level, [...(nodesByLevel.get(level) || []), node]);
+  });
+  const levelColors = ["#1d4ed8", "#0891b2", "#7c3aed", "#ca8a04", "#dc2626", "#059669"];
+  const positionedNodes = dedupNodes.map((node) => {
+    const level = currentHierarchy.levels.get(node.id) || 0;
+    const levelNodes = nodesByLevel.get(level) || [];
+    const index = levelNodes.findIndex((item) => item.id === node.id);
+    const spacing = 150;
+    return {
+      node,
+      level,
+      x: (index - (levelNodes.length - 1) / 2) * spacing,
+      y: level * 140,
+    };
+  });
 
   return {
     animationDuration: 350,
@@ -320,9 +402,23 @@ const chartOption = computed<EChartsOption>(() => {
               name?: string;
               relativePath?: string;
               exists?: boolean;
+              type?: KnowledgeGraphLinkType;
+              raw?: string;
             }
           | undefined;
         if (!data) return "";
+        if (item.dataType === "edge") {
+          const labels: Partial<Record<KnowledgeGraphLinkType, string>> = {
+            parent_of: "关键词层级",
+            related_by_keyword: "共享关键词",
+            mentions: "关键词引用",
+            tagged_with: "标签引用",
+            contains: "标题层级",
+            wiki: "Wiki Link",
+            markdown: "Markdown Link",
+          };
+          return `${labels[data.type || "wiki"] || "关系"}<br/>${data.raw || ""}`;
+        }
         const status = data.exists === false ? "<br/>状态：缺失" : "";
         return `${data.name || ""}<br/>${data.relativePath || ""}${status}`;
       },
@@ -330,19 +426,23 @@ const chartOption = computed<EChartsOption>(() => {
     series: [
       {
         type: "graph",
-        layout: "force",
+        layout: layoutMode.value === "hierarchy" ? "none" : "force",
         roam: true,
         draggable: true,
-        data: dedupNodes.map((node) => ({
+        data: positionedNodes.map(({ node, level, x, y }) => ({
           id: node.id,
           name: node.name,
           relativePath: node.relativePath,
           exists: node.exists,
+          level,
+          x: layoutMode.value === "hierarchy" ? x : undefined,
+          y: layoutMode.value === "hierarchy" ? y : undefined,
           value: degree.get(node.id) || 0,
           symbolSize: Math.min(42, 18 + (degree.get(node.id) || 0) * 2),
           itemStyle: {
-            color:
-              node.category === "tag"
+            color: layoutMode.value === "hierarchy"
+              ? levelColors[level % levelColors.length]
+              : node.category === "tag"
                 ? "#ca8a04"
                 : node.category === "keyword"
                   ? "#0891b2"
@@ -352,12 +452,18 @@ const chartOption = computed<EChartsOption>(() => {
                       ? "#2563eb"
                       : "#dc2626",
           },
-          label: { show: dedupNodes.length <= 80 },
+          label: {
+            show: dedupNodes.length <= 120,
+            position: level === 0 ? "top" : "bottom",
+            formatter: `{b}\nL${level}`,
+          },
         })),
         links: dedupLinks.map((link) => ({
           id: `${link.source}->${link.target}:${link.type}:${link.raw}`,
           source: link.source,
           target: link.target,
+          type: link.type,
+          raw: link.raw,
           lineStyle: {
             curveness:
               link.type === "related_by_keyword"
@@ -371,7 +477,10 @@ const chartOption = computed<EChartsOption>(() => {
         lineStyle: { color: "#94a3b8", opacity: 0.65 },
         edgeSymbol: ["none", "arrow"],
         edgeSymbolSize: 6,
-        force: { repulsion: 260, edgeLength: 100, gravity: 0.08 },
+        force:
+          layoutMode.value === "force"
+            ? { repulsion: 260, edgeLength: 100, gravity: 0.08 }
+            : undefined,
         emphasis: { focus: "adjacency", lineStyle: { width: 2 } },
       },
     ],
@@ -442,6 +551,15 @@ const handleChartClick = (params: unknown): void => {
   if (!params || typeof params !== "object") return;
   const event = params as { dataType?: string; data?: { id?: string } };
   if (event.dataType !== "node" || !event.data?.id) return;
+  if (
+    layoutMode.value === "hierarchy" &&
+    hierarchy.value.childIds.has(event.data.id)
+  ) {
+    const next = new Set(collapsedNodeIds.value);
+    if (next.has(event.data.id)) next.delete(event.data.id);
+    else next.add(event.data.id);
+    collapsedNodeIds.value = next;
+  }
   selectedNodeId.value = event.data.id;
   emit("nodeSelected", event.data.id);
   if (neighborhoodDepth.value === 0) neighborhoodDepth.value = 1;
@@ -456,6 +574,20 @@ const refreshGraph = async (): Promise<void> => {
 watch(chartOption, () => {
   void renderChart();
 });
+
+watch(
+  () => hierarchy.value.maxLevel,
+  (maxLevel) => {
+    visibleHierarchyLevel.value = Math.min(
+      Math.max(1, visibleHierarchyLevel.value),
+      maxLevel,
+    );
+    collapsedNodeIds.value = new Set(
+      [...collapsedNodeIds.value].filter((id) => hierarchy.value.childIds.has(id)),
+    );
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   void renderChart();
@@ -526,6 +658,13 @@ defineExpose({
   height: clamp(360px, 62vh, 720px);
   min-height: 360px;
   margin-top: 8px;
+}
+
+.graph-controls > .text-button {
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  background: #ecfeff;
+  color: #0e7490;
 }
 
 .graph-controls {
