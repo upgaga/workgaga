@@ -308,8 +308,57 @@ export const useKnowledgeGraphStore = defineStore("knowledgeGraph", {
       }
     },
 
-    async refresh() {
-      await this.indexVault();
+    async refresh(overlayNote?: KnowledgeNote) {
+      if (!overlayNote || !this.vaultPath) {
+        await this.indexVault();
+        return;
+      }
+      if (this.loading) {
+        this.refreshPending = true;
+        return;
+      }
+      this.loading = true;
+      this.error = null;
+
+      try {
+        const vaultsToIndex = this.vaults.length ? this.vaults : [
+          { path: this.vaultPath, name: getKnowledgeBaseName(this.vaultPath) },
+        ];
+        const results = await Promise.all(
+          vaultsToIndex.map(async (vault) => ({
+            vaultPath: vault.path,
+            graph: await indexKnowledgeVault(
+              vault.path,
+              normalizePath(vault.path) === normalizePath(this.vaultPath || "")
+                ? { overlayNotes: [overlayNote] }
+                : {},
+            ),
+          })),
+        );
+        const graphData = mergeKnowledgeGraphData(results);
+        this.graphData = graphData;
+        results.forEach(({ vaultPath, graph }) => {
+          const key = normalizePath(vaultPath);
+          this.graphByVault[key] = graph;
+          this.notesByVault[key] = graph.notes || [];
+          this.fileSnapshotsByVault[key] = (graph.notes || []).map((note) => ({
+            path: note.path,
+            relativePath: note.relativePath,
+            size: note.size || 0,
+            mtime: note.mtime ?? null,
+          }));
+        });
+        this.fileSnapshots = this.fileSnapshotsByVault[normalizePath(this.vaultPath)] || [];
+        this.lastIndexedAt = graphData.indexedAt;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      } finally {
+        this.loading = false;
+        if (this.refreshPending) {
+          this.refreshPending = false;
+          await this.indexVault();
+        }
+      }
     },
 
     async setKnowledgeBase(path: string | null) {

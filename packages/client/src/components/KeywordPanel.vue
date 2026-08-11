@@ -109,8 +109,17 @@
               placeholder="输入关键词"
               @keydown.esc="cancelEditing"
             />
-            <button type="submit">确定</button
-            ><button type="button" class="secondary" @click="cancelEditing">
+            <select v-model="editingParent">
+              <option value="">无父级</option>
+              <option
+                v-for="parent in parentKeywordOptions"
+                :key="parent.normalized || parent.text"
+                :value="parent.normalized || normalizeKeyword(parent.text)"
+              >
+                {{ parent.text }}
+              </option>
+            </select>
+            <button type="submit">确定</button><button type="button" class="secondary" @click="cancelEditing">
               取消
             </button>
           </form>
@@ -122,7 +131,10 @@
               v-for="keyword in keywordList"
               :key="keyword.normalized || keyword.text"
             >
-              <span class="keyword-text">{{ keyword.text }}</span>
+              <span class="keyword-text">
+                {{ keyword.parent ? `└ ${keyword.text}` : keyword.text }}
+                <small v-if="keyword.parent">父级：{{ keyword.parent }}</small>
+              </span>
               <span class="keyword-actions"
                 ><button
                   title="编辑关键词"
@@ -233,6 +245,7 @@ const extractionMessage = ref("");
 const editing = ref(false);
 const editingText = ref("");
 const editingOriginal = ref<string | null>(null);
+const editingParent = ref("");
 const tagEditing = ref(false);
 const tagEditingText = ref("");
 const tagEditingOriginal = ref<string | null>(null);
@@ -244,6 +257,13 @@ const deletedTag = ref<string | null>(null);
 let undoTimer: ReturnType<typeof setTimeout> | undefined;
 
 const keywordList = computed(() => props.keywords);
+const parentKeywordOptions = computed(() =>
+  props.keywords.filter(
+    (keyword) =>
+      normalizeKeyword(keyword.text) !==
+      normalizeKeyword(editingText.value || editingOriginal.value || ""),
+  ),
+);
 const extractionEnabled = computed(
   () => aiAssistantStore.settings.keywordExtractionEnabled,
 );
@@ -341,12 +361,17 @@ const refreshCandidates = async () => {
 const startAdding = () => {
   editingOriginal.value = null;
   editingText.value = "";
+  editingParent.value = "";
   editing.value = true;
 };
 
 const startEditing = (text: string) => {
+  const keyword = props.keywords.find(
+    (item) => normalizeKeyword(item.text) === normalizeKeyword(text),
+  );
   editingOriginal.value = text;
   editingText.value = text;
+  editingParent.value = keyword?.parentNormalized || keyword?.parent || "";
   editing.value = true;
 };
 
@@ -354,6 +379,7 @@ const cancelEditing = () => {
   editing.value = false;
   editingText.value = "";
   editingOriginal.value = null;
+  editingParent.value = "";
 };
 
 const startAddingTag = () => {
@@ -414,7 +440,18 @@ const submitKeyword = () => {
       normalizeKeyword(editingOriginal.value || ""),
   );
   if (!next.some((keyword) => normalizeKeyword(keyword.text) === normalized)) {
-    next.push({ text, normalized, source: "frontmatter" });
+    const parent = props.keywords.find(
+      (keyword) =>
+        normalizeKeyword(keyword.normalized || keyword.text) ===
+        normalizeKeyword(editingParent.value),
+    );
+    if (editingParent.value && !parent) return;
+    next.push({
+      text,
+      normalized,
+      source: "frontmatter",
+      ...(parent ? { parent: parent.text, parentNormalized: normalizeKeyword(parent.text) } : {}),
+    });
   }
   emit("update:keywords", next);
   cancelEditing();

@@ -405,14 +405,28 @@ export const getKnowledgeGraphNeighborhood = (
     (node) =>
       allowedIds.has(node.id) && (!categories || categories.has(node.category)),
   );
-  const filteredNodeIds = new Set(filteredNodes.map((node) => node.id));
+  const uniqueNodeIds = new Set<string>();
+  const dedupFilteredNodes = filteredNodes.filter((node) => {
+    if (uniqueNodeIds.has(node.id)) return false;
+    uniqueNodeIds.add(node.id);
+    return true;
+  });
+  const filteredNodeIds = new Set(dedupFilteredNodes.map((node) => node.id));
+  const filteredLinks = links.filter(
+    (link) =>
+      filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target),
+  );
+  const uniqueLinkKeys = new Set<string>();
+  const dedupFilteredLinks = filteredLinks.filter((link) => {
+    const key = `${link.source}->${link.target}:${link.type}:${link.raw}`;
+    if (uniqueLinkKeys.has(key)) return false;
+    uniqueLinkKeys.add(key);
+    return true;
+  });
   return {
     ...graph,
-    nodes: filteredNodes,
-    links: links.filter(
-      (link) =>
-        filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target),
-    ),
+    nodes: dedupFilteredNodes,
+    links: dedupFilteredLinks,
   };
 };
 
@@ -478,10 +492,30 @@ export const mergeKnowledgeGraphData = (
     },
   );
 
+  const dedupNodes = new Map<string, KnowledgeGraphNode>();
+  namespaced.forEach((graph) =>
+    graph.nodes.forEach((node) => {
+      if (!dedupNodes.has(node.id)) dedupNodes.set(node.id, node);
+    }),
+  );
+  const dedupLinks = new Map<string, KnowledgeGraphLink>();
+  namespaced.forEach((graph) =>
+    graph.links.forEach((link) => {
+      const key = `${link.source}->${link.target}:${link.type}:${link.raw}`;
+      if (!dedupLinks.has(key)) dedupLinks.set(key, link);
+    }),
+  );
+  const dedupNotes = new Map<string, KnowledgeNote>();
+  namespaced.forEach((graph) =>
+    (graph.notes || []).forEach((note) => {
+      if (!dedupNotes.has(note.id)) dedupNotes.set(note.id, note);
+    }),
+  );
+
   return {
-    nodes: namespaced.flatMap((graph) => graph.nodes),
-    links: namespaced.flatMap((graph) => graph.links),
-    notes: namespaced.flatMap((graph) => graph.notes || []),
+    nodes: Array.from(dedupNodes.values()),
+    links: Array.from(dedupLinks.values()),
+    notes: Array.from(dedupNotes.values()),
     indexedAt: Date.now(),
     indexStats: {
       ...stats,
@@ -554,12 +588,14 @@ export const buildKnowledgeGraph = (
       const normalized = normalizeKeyword(keyword.normalized || keyword.text);
       if (!normalized) return;
       const keywordId = `keyword:${normalized}`;
-      nodes.set(keywordId, {
-        id: keywordId,
-        name: keyword.text,
-        exists: true,
-        category: "keyword",
-      });
+      if (!nodes.has(keywordId)) {
+        nodes.set(keywordId, {
+          id: keywordId,
+          name: keyword.text,
+          exists: true,
+          category: "keyword",
+        });
+      }
       links.set(`${note.id}->${keywordId}:mentions`, {
         source: note.id,
         target: keywordId,
@@ -582,6 +618,29 @@ export const buildKnowledgeGraph = (
       if (!evidenceByNote.has(note.id))
         evidenceByNote.set(note.id, keyword.text);
       keywordEvidence.set(normalized, evidenceByNote);
+      if (keyword.parentNormalized || keyword.parent) {
+        const parentNormalized = normalizeKeyword(
+          keyword.parentNormalized || keyword.parent || "",
+        );
+        if (parentNormalized && parentNormalized !== normalized) {
+          const parentId = `keyword:${parentNormalized}`;
+          if (!nodes.has(parentId)) {
+            nodes.set(parentId, {
+              id: parentId,
+              name: keyword.parent || parentNormalized,
+              exists: true,
+              category: "keyword",
+            });
+          }
+          links.set(`${parentId}->${keywordId}:parent_of`, {
+            source: parentId,
+            target: keywordId,
+            type: "parent_of",
+            raw: `${keyword.parent || parentNormalized} → ${keyword.text}`,
+            sourceKind: "frontmatter",
+          });
+        }
+      }
     });
   });
 
@@ -788,16 +847,24 @@ const createIndexStats = (
 
 export const indexKnowledgeVault = async (
   vaultPath: string,
+  options: { overlayNotes?: KnowledgeNote[] } = {},
 ): Promise<KnowledgeGraphData> => {
   const startedAt = Date.now();
   const scan = await scanKnowledgeVault(vaultPath);
+  const notesByPath = new Map(
+    scan.notes.map((note) => [normalizePath(note.relativePath).toLowerCase(), note]),
+  );
+  options.overlayNotes?.forEach((note) => {
+    notesByPath.set(normalizePath(note.relativePath).toLowerCase(), note);
+  });
+  const notes = Array.from(notesByPath.values());
   return {
-    ...buildKnowledgeGraph(scan.notes),
+    ...buildKnowledgeGraph(notes),
     indexStats: createIndexStats(
       "full",
-      scan.files.length,
-      scan.files.length,
-      0,
+      notes.length,
+        notes.length,
+        0,
       0,
       scan.failedFiles,
       scan.warnings,

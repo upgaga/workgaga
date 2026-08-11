@@ -85,17 +85,91 @@ const unquote = (value: string): string =>
     .replace(/^['"]|['"]$/g, "")
     .trim();
 
+const splitKeywordParts = (value: string, separator: string): string[] => {
+  const parts: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === "[" || character === "{") depth += 1;
+    else if (character === "]" || character === "}") depth -= 1;
+    else if (character === separator && depth === 0) {
+      parts.push(value.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start));
+  return parts;
+};
+
 const parseKeywordValue = (value: string): KnowledgeKeyword[] => {
   const input = value.trim();
   if (!input) return [];
   if (input.startsWith("[") && input.endsWith("]")) {
     const body = input.slice(1, -1).trim();
     if (!body) return [];
-    return body.split(",").flatMap((item) => parseKeywordValue(item));
+    return splitKeywordParts(body, ",").flatMap((item) =>
+      parseKeywordValue(item),
+    );
+  }
+  if (/^name\s*:/i.test(input)) {
+    const nameMatch = input.match(
+      /^name\s*:\s*(?:"((?:\\.|[^"])*)"|'((?:\\.|[^'])*)'|(.+?))(?=\s+parent\s*:|$)/i,
+    );
+    const parentMatch = input.match(
+      /\bparent\s*:\s*(?:"((?:\\.|[^"])*)"|'((?:\\.|[^'])*)'|(.+))$/i,
+    );
+    const text = nameMatch
+      ? unquote(nameMatch[1] ?? nameMatch[2] ?? nameMatch[3])
+      : "";
+    const parent = parentMatch
+      ? unquote(parentMatch[1] ?? parentMatch[2] ?? parentMatch[3])
+      : "";
+    return text
+      ? [
+          {
+            text,
+            normalized: normalizeKeyword(text),
+            ...(parent
+              ? { parent, parentNormalized: normalizeKeyword(parent) }
+              : {}),
+          },
+        ]
+      : [];
   }
   if (input.startsWith("{") && input.endsWith("}")) {
     const body = input.slice(1, -1).trim();
-    return body.split(",").flatMap((item) => {
+    if (!body) return [];
+    const nameMatch = body.match(/(?:^|,)\s*name\s*:\s*([^,]+)/i);
+    if (nameMatch) {
+      const parentMatch = body.match(/(?:^|,)\s*parent\s*:\s*([^,]+)/i);
+      const text = unquote(nameMatch[1]);
+      const parent = parentMatch ? unquote(parentMatch[1]) : "";
+      return text
+        ? [
+            {
+              text,
+              normalized: normalizeKeyword(text),
+              ...(parent
+                ? { parent, parentNormalized: normalizeKeyword(parent) }
+                : {}),
+            },
+          ]
+        : [];
+    }
+    return splitKeywordParts(body, ",").flatMap((item) => {
       const separator = item.indexOf(":");
       if (separator < 0) return parseKeywordValue(item);
       const text = unquote(item.slice(0, separator));
@@ -207,10 +281,16 @@ export const writeFrontmatterKeywords = (
   keywords: readonly (KnowledgeKeyword | string)[],
 ): string => {
   const values = keywords
-    .map((keyword) => (typeof keyword === "string" ? keyword : keyword.text))
-    .map(cleanKeyword)
-    .filter(Boolean);
-  const line = `keywords: [${values.map((value) => JSON.stringify(value)).join(", ")}]`;
+    .map((keyword) => {
+      if (typeof keyword === "string") return JSON.stringify(cleanKeyword(keyword));
+      const text = cleanKeyword(keyword.text);
+      const parent = keyword.parent ? cleanKeyword(keyword.parent) : "";
+      return parent
+        ? `{ name: ${JSON.stringify(text)}, parent: ${JSON.stringify(parent)} }`
+        : JSON.stringify(text);
+    })
+    .filter((value) => value !== '""');
+  const line = `keywords: [${values.join(", ")}]`;
   const lines = content.split(/\r?\n/);
   if (lines[0]?.trim() === "---") {
     const end = lines.findIndex(

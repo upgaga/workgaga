@@ -27,7 +27,11 @@ import ToastContainer from "./components/ui/ToastContainer.vue";
 import UnsavedChangesDialog, {
   type UnsavedDialogResult,
 } from "./components/ui/UnsavedChangesDialog.vue";
-import type { FileOperationResult, KnowledgeKeyword } from "./components/types";
+import type {
+  FileOperationResult,
+  KnowledgeKeyword,
+  KnowledgeNote,
+} from "./components/types";
 import {
   parseFrontmatterKeywords,
   writeFrontmatterKeywords,
@@ -100,6 +104,52 @@ const setCurrentMarkdown = (markdown: string): void => {
   documentTags.value = parseFrontmatterTags(markdown);
 };
 
+const buildDraftNote = (): KnowledgeNote | null => {
+  const path = fileStore.currentFilePath;
+  if (!path || !knowledgeGraphStore.vaultPath) return null;
+  const vaultPath = knowledgeGraphStore.vaultPath.replace(/[\\/]+$/, "");
+  const normalizedPath = path.replace(/\\/g, "/");
+  const normalizedVaultPath = vaultPath.replace(/\\/g, "/");
+  if (!normalizedPath.startsWith(`${normalizedVaultPath}/`)) return null;
+  const relativePath = normalizedPath.slice(normalizedVaultPath.length + 1);
+  const content = workgaga?.getMarkdown() ?? currentMarkdown.value;
+  currentMarkdown.value = content;
+  return {
+    id: relativePath,
+    path,
+    relativePath,
+    title: relativePath.replace(/^.*\//, "").replace(/\.(md|markdown)$/i, ""),
+    content,
+    ...extractMarkdownMetadataForDraft(content, relativePath),
+  };
+};
+
+function extractMarkdownMetadataForDraft(
+  content: string,
+  noteId: string,
+): Pick<KnowledgeNote, "headings" | "tags" | "aliases" | "keywords"> {
+  const headings = content
+    .split(/\r?\n/)
+    .flatMap((line, index) => {
+      const match = line.match(/^(#{1,6})\s+(.+?)\s*#*$/);
+      return match
+        ? [
+            {
+              id: `${noteId}#heading-${index + 1}`,
+              text: match[2].trim(),
+              level: match[1].length,
+            },
+          ]
+        : [];
+    });
+  return {
+    headings,
+    tags: parseFrontmatterTags(content),
+    aliases: [],
+    keywords: parseFrontmatterKeywords(content),
+  };
+}
+
 const updateDocumentKeywords = (keywords: KnowledgeKeyword[]): void => {
   documentKeywords.value = keywords;
   const baseMarkdown = workgaga?.getMarkdown() ?? currentMarkdown.value;
@@ -108,6 +158,8 @@ const updateDocumentKeywords = (keywords: KnowledgeKeyword[]): void => {
     workgaga.setMarkdown(currentMarkdown.value);
   }
   hasUnsavedChanges = true;
+  const draft = buildDraftNote();
+  if (draft) void knowledgeGraphStore.refresh(draft);
 };
 
 const updateDocumentTags = (tags: string[]): void => {
@@ -549,6 +601,7 @@ const dealAfterChange = (): void => {
 
   if (workgaga) {
     currentMarkdown.value = workgaga.getMarkdown();
+    documentKeywords.value = parseFrontmatterKeywords(currentMarkdown.value);
     documentTags.value = parseFrontmatterTags(currentMarkdown.value);
   }
 
@@ -582,7 +635,7 @@ const restoreLastOpenedFile = async (): Promise<void> => {
 };
 
 // ========== 事件处理函数 ==========
-const handleSwitchMainView = (event: Event) => {
+const handleSwitchMainView = (event: Event): void => {
   const view = (
     event as CustomEvent<{
       view: "editor" | "dashboard" | "ai" | "knowledgeGraph";

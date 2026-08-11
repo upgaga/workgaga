@@ -135,6 +135,8 @@ export interface KnowledgeVault {
 export interface KnowledgeKeyword {
   text: string;
   normalized?: string;
+  parent?: string;
+  parentNormalized?: string;
   score?: number;
   frequency?: number;
   source?: "frontmatter" | "title" | "heading" | "tag" | "alias" | "content";
@@ -201,7 +203,8 @@ export type KnowledgeGraphLinkType =
   | "contains"
   | "tagged_with"
   | "mentions"
-  | "related_by_keyword";
+  | "related_by_keyword"
+  | "parent_of";
 
 export interface KnowledgeGraphLink {
   source: string;

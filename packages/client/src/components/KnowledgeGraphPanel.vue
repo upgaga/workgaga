@@ -74,6 +74,9 @@
               <option value="markdown">Markdown Link</option>
               <option value="contains">标题层级</option>
               <option value="tagged_with">标签</option>
+              <option value="mentions">关键词</option>
+              <option value="related_by_keyword">共享关键词</option>
+              <option value="parent_of">关键词层级</option>
             </select>
           </label>
           <label>
@@ -83,6 +86,7 @@
               <option value="note">文档</option>
               <option value="heading">标题</option>
               <option value="tag">标签</option>
+              <option value="keyword">关键词</option>
               <option value="missing">缺失</option>
             </select>
           </label>
@@ -221,6 +225,7 @@ const selectedLinkType = ref<KnowledgeGraphLinkType | "all">("all");
 const neighborhoodDepth = ref(0);
 let chart: EChartsType | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let renderRequestId = 0;
 
 const nodesById = computed(
   () => new Map((graphData.value?.nodes || []).map((node) => [node.id, node])),
@@ -280,11 +285,26 @@ const linkItems = computed(() =>
 );
 
 const chartOption = computed<EChartsOption>(() => {
-  const nodes = visibleGraph.value?.nodes || [];
-  const links = visibleGraph.value?.links || [];
-  const degree = new Map<string, number>();
+  const rawNodes = visibleGraph.value?.nodes || [];
+  const rawLinks = visibleGraph.value?.links || [];
 
-  links.forEach((link) => {
+  const seenNodeIds = new Set<string>();
+  const dedupNodes = rawNodes.filter((node) => {
+    if (seenNodeIds.has(node.id)) return false;
+    seenNodeIds.add(node.id);
+    return true;
+  });
+
+  const seenLinkIds = new Set<string>();
+  const dedupLinks = rawLinks.filter((link) => {
+    const id = `${link.source}->${link.target}:${link.type}:${link.raw}`;
+    if (seenLinkIds.has(id)) return false;
+    seenLinkIds.add(id);
+    return true;
+  });
+
+  const degree = new Map<string, number>();
+  dedupLinks.forEach((link) => {
     degree.set(link.source, (degree.get(link.source) || 0) + 1);
     degree.set(link.target, (degree.get(link.target) || 0) + 1);
   });
@@ -313,7 +333,7 @@ const chartOption = computed<EChartsOption>(() => {
         layout: "force",
         roam: true,
         draggable: true,
-        data: nodes.map((node) => ({
+        data: dedupNodes.map((node) => ({
           id: node.id,
           name: node.name,
           relativePath: node.relativePath,
@@ -324,19 +344,31 @@ const chartOption = computed<EChartsOption>(() => {
             color:
               node.category === "tag"
                 ? "#ca8a04"
-                : node.category === "heading"
-                  ? "#7c3aed"
-                  : node.exists
-                    ? "#2563eb"
-                    : "#dc2626",
+                : node.category === "keyword"
+                  ? "#0891b2"
+                  : node.category === "heading"
+                    ? "#7c3aed"
+                    : node.exists
+                      ? "#2563eb"
+                      : "#dc2626",
           },
-          label: { show: nodes.length <= 80 },
+          label: { show: dedupNodes.length <= 80 },
         })),
-        links: links.map((link) => ({
+        links: dedupLinks.map((link) => ({
+          id: `${link.source}->${link.target}:${link.type}:${link.raw}`,
           source: link.source,
           target: link.target,
+          lineStyle: {
+            curveness:
+              link.type === "related_by_keyword"
+                ? 0.2
+                : link.type === "parent_of"
+                  ? 0.14
+                  : 0.08,
+            type: link.type === "parent_of" ? "dashed" : "solid",
+          },
         })),
-        lineStyle: { color: "#94a3b8", opacity: 0.65, curveness: 0.08 },
+        lineStyle: { color: "#94a3b8", opacity: 0.65 },
         edgeSymbol: ["none", "arrow"],
         edgeSymbolSize: 6,
         force: { repulsion: 260, edgeLength: 100, gravity: 0.08 },
@@ -347,16 +379,19 @@ const chartOption = computed<EChartsOption>(() => {
 });
 
 const renderChart = async (): Promise<void> => {
+  const requestId = ++renderRequestId;
   await nextTick();
+  if (requestId !== renderRequestId) return;
   const container = chartContainer.value;
   if (!container) return;
 
   if (container.clientWidth === 0 || container.clientHeight === 0) {
     requestAnimationFrame(() => {
-      void renderChart();
+      if (requestId === renderRequestId) void renderChart();
     });
     return;
   }
+  if (requestId !== renderRequestId) return;
 
   if (!chart) {
     chart = echarts.init(container, undefined, {
@@ -366,11 +401,37 @@ const renderChart = async (): Promise<void> => {
     });
     chart.on("click", handleChartClick);
   }
-  chart.setOption(chartOption.value, true);
-  chart.resize({
-    width: container.clientWidth,
-    height: container.clientHeight,
-  });
+  if (requestId !== renderRequestId) return;
+
+  const optionSnapshot = chartOption.value;
+
+  try {
+    chart.clear();
+    if (requestId !== renderRequestId) return;
+    chart.setOption(optionSnapshot, true);
+    chart.resize({
+      width: container.clientWidth,
+      height: container.clientHeight,
+    });
+  } catch (_err) {
+    try {
+      chart.off("click", handleChartClick);
+      chart.dispose();
+    } catch (_) { /* noop */ }
+    chart = echarts.init(container, undefined, {
+      renderer: "canvas",
+      width: container.clientWidth,
+      height: container.clientHeight,
+    });
+    chart.on("click", handleChartClick);
+    try {
+      chart.setOption(optionSnapshot, true);
+      chart.resize({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
+    } catch (_err2) { /* noop */ }
+  }
 };
 
 const resetChart = (): void => {

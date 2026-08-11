@@ -115,7 +115,7 @@ describe("knowledge graph indexing", () => {
     ]);
 
     expect(graph.nodes.filter((node) => node.category === "keyword")).toEqual([
-      expect.objectContaining({ id: "keyword:typescript", name: "typescript" }),
+      expect.objectContaining({ id: "keyword:typescript", name: "TypeScript" }),
       expect.objectContaining({
         id: "keyword:knowledge graph",
         name: "Knowledge Graph",
@@ -124,6 +124,9 @@ describe("knowledge graph indexing", () => {
     expect(graph.links.filter((link) => link.type === "mentions")).toHaveLength(
       3,
     );
+    expect(
+      graph.nodes.filter((node) => node.id === "keyword:typescript"),
+    ).toHaveLength(1);
     expect(
       graph.links.filter((link) => link.type === "related_by_keyword"),
     ).toEqual([
