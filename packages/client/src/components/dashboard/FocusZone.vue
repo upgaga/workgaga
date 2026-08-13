@@ -2,8 +2,8 @@
   <section class="focus-zone" :class="{ idle: !todo }">
     <div class="focus-zone__header">
       <div>
-        <p class="focus-zone__kicker">FOCUS ZONE</p>
-        <h3>{{ todo ? '当前专注任务' : '专注舱待激活' }}</h3>
+        <p class="focus-zone__kicker">{{ t('focusZone') }}</p>
+        <h3>{{ todo ? t('currentFocusTask') : t('focusPending') }}</h3>
       </div>
       <span class="focus-zone__timer">{{ todo ? formatMinutes(elapsedMinutes) : '00:00' }}</span>
     </div>
@@ -17,25 +17,28 @@
       </div>
 
       <div class="focus-zone__meta">
-        <span>计划日期 {{ todo.plannedDate }}</span>
-        <span v-if="todo.estimatedMinutes">预估 {{ todo.estimatedMinutes }} 分钟</span>
-        <span v-if="todo.actualMinutes">累计记录 {{ todo.actualMinutes }} 分钟</span>
+        <span>{{ t('plannedDateLabel') }} {{ todo.plannedDate }}</span>
+        <span v-if="todo.estimatedMinutes">{{ t('estimated') }} {{ todo.estimatedMinutes }} {{ t('actualMinutes') }}</span>
+        <span v-if="todo.actualMinutes">{{ t('recorded') }} {{ todo.actualMinutes }} {{ t('actualMinutes') }}</span>
       </div>
 
       <div class="focus-zone__actions">
-        <button class="ghost-btn" @click="$emit('pause', todo.id)">暂停专注</button>
-        <button class="primary-btn" @click="$emit('complete', todo.id)">完成并复盘</button>
+        <button class="ghost-btn" @click="$emit('pause', todo.id)">{{ t('pauseFocus') }}</button>
+        <button class="primary-btn" @click="$emit('complete', todo.id)">{{ t('completeAndReview') }}</button>
       </div>
     </div>
 
     <div v-else class="focus-zone__empty">
-      <p>从“今日计划池”选择一项最重要的任务进入专注，工作台会帮你把注意力收拢到一件事上。</p>
+      <p>{{ t('focusEmpty') }}</p>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n';
 import type { TodoItem } from '../../store/modal/dashboard';
+
+const { t } = useI18n();
 
 defineProps<{
   todo: TodoItem | null;
@@ -48,9 +51,9 @@ defineEmits<{
 }>();
 
 function priorityLabel(priority?: TodoItem['priority']) {
-  if (priority === 'high') return '高优先级';
-  if (priority === 'low') return '低优先级';
-  return '中优先级';
+  if (priority === 'high') return t('highPriority');
+  if (priority === 'low') return t('lowPriority');
+  return t('mediumPriority');
 }
 
 function formatMinutes(value: number) {

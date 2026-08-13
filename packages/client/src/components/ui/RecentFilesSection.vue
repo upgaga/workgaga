@@ -2,12 +2,17 @@
   <div class="recent-files-section">
     <div class="section-header">
       <div class="section-title-container" @click="$emit('toggle')">
-        <span class="section-title">最近访问</span>
+        <span class="section-title">{{ t("recentFiles") }}</span>
         <div class="expand-arrow" :class="{ expanded: expanded }">
           <ArrowIcon :size="12" :direction="expanded ? 'down' : 'right'" />
         </div>
       </div>
-      <button class="clear-btn" @click="$emit('clear')" title="清空列表">×</button>
+      <button
+        class="clear-btn"
+        @click="$emit('clear')"
+        :title="t('clearList')"
+        :aria-label="t('clearList')"
+      >×</button>
     </div>
 
     <div class="file-list" v-if="expanded">
@@ -28,7 +33,7 @@
         </div>
       </div>
 
-      <div v-if="files.length === 0" class="empty-state">暂无最近访问的文件</div>
+      <div v-if="files.length === 0" class="empty-state">{{ t("noRecentFiles") }}</div>
     </div>
   </div>
 </template>
@@ -37,6 +42,9 @@
 import { FileIcon, ArrowIcon } from '../icons';
 import { formatTimestamp } from '../fileUtils';
 import type { FileInfo } from '../types';
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
 
 defineProps<{
   expanded: boolean;

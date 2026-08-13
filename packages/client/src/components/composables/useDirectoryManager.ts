@@ -9,6 +9,7 @@ import {
 } from '../fileUtils';
 import { useDirectoryStore } from '../../store';
 import { mergeSimilarDirectories } from '../../utils/path';
+import { useI18n } from './useI18n';
 
 // 常量定义
 const MAX_DIRECTORY_COUNT = 10; // 最大目录数量
@@ -18,6 +19,7 @@ const FULL_TREE_DEPTH = 64;
  * 目录管理composable
  */
 export function useDirectoryManager(fileStore: FileStore) {
+  const { t } = useI18n();
   const directoryStore = useDirectoryStore();
 
   // 目录管理相关数据
@@ -171,7 +173,7 @@ export function useDirectoryManager(fileStore: FileStore) {
         recentDirectories.value.map((dir) => ({ path: dir.path, expanded: dir.expanded ?? false })),
       );
     } catch (error) {
-      console.error('打开目录失败:', error);
+      console.error(`${t("openDirectoryFailed")}`, error);
     }
   };
 

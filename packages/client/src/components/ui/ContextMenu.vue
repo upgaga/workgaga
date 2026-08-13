@@ -1,5 +1,5 @@
 <template>
-  <div class="context-menu" :style="{ left: x + 'px', top: y + 'px' }" @click.stop>
+  <div class="context-menu" :aria-label="t('contextMenu')" :style="{ left: x + 'px', top: y + 'px' }" @click.stop>
     <ContextMenuList
       :file="file"
       :menu-type="menuType"
@@ -13,6 +13,9 @@
 <script setup lang="ts">
 import type { FileInfo } from '../types';
 import ContextMenuList from './ContextMenuList.vue';
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
 
 defineProps<{
   x: number;

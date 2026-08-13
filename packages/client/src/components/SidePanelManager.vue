@@ -2,28 +2,36 @@
   <div class="side-panel" :class="{ collapsed: isCollapsed }">
     <nav class="activity-bar">
       <div class="activity-buttons">
-        <button class="activity-btn" title="仪表盘" @click="openDashboard">
+        <button class="activity-btn" :title="t('dashboard')" @click="openDashboard">
           <DashboardIcon :size="18" />
-          <span class="sr-only">仪表盘</span>
+          <span class="sr-only">{{ t("dashboard") }}</span>
         </button>
-        <button class="activity-btn" title="AI 助手" @click="openAI">
+        <button class="activity-btn" :title="t('aiAssistant')" @click="openAI">
           <AiIcon :size="18" />
-          <span class="sr-only">AI 助手</span>
+          <span class="sr-only">{{ t("aiAssistant") }}</span>
         </button>
         <button
           v-for="panel in panels"
           :key="panel.id"
           class="activity-btn"
           :class="{ active: panel.id === activePanelId }"
-          :title="panel.label"
+          :title="t(panel.label)"
           @click="
             panel.id === 'graph' ? openKnowledgeGraph() : selectPanel(panel.id)
           "
         >
           <component :is="panel.icon" :size="18" />
-          <span class="sr-only">{{ panel.label }}</span>
+          <span class="sr-only">{{ t(panel.label) }}</span>
         </button>
       </div>
+      <button
+        class="language-btn"
+        :title="t('switchLanguage')"
+        :aria-label="t('switchLanguage')"
+        @click="toggleLocale"
+      >
+        {{ languageLabel }}
+      </button>
       <div class="version-info">
         <span class="version-text">v{{ version }}</span>
       </div>
@@ -31,35 +39,35 @@
 
     <section class="panel-surface" :class="{ collapsed: isCollapsed }">
       <header class="panel-header">
-        <h3>{{ activePanel?.label }}</h3>
+        <h3>{{ activePanel ? t(activePanel.label) : "" }}</h3>
         <div class="header-actions">
           <button
             v-if="activePanelId === 'explorer'"
             class="header-action"
-            title="打开知识库"
+            :title="t('openKnowledgeBase')"
             @click="triggerOpenDirectory"
           >
-            打开知识库
+            {{ t("openKnowledgeBase") }}
           </button>
           <button
             v-if="activePanelId === 'recent'"
             class="header-action"
-            title="打开文档"
+            :title="t('openDocument')"
             @click="triggerOpenRecentFile"
           >
-            打开文档
+            {{ t("openDocument") }}
           </button>
           <button
             v-if="activePanelId === 'graph'"
             class="header-action"
-            title="刷新图谱"
+            :title="t('refreshGraph')"
             @click="triggerRefreshGraph"
           >
-            刷新图谱
+            {{ t("refreshGraph") }}
           </button>
           <button
             class="header-toggle"
-            :title="isCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+            :title="isCollapsed ? t('expandSidebar') : t('collapseSidebar')"
             @click="toggleCollapse"
           >
             <ArrowIcon :size="14" :direction="isCollapsed ? 'right' : 'left'" />
@@ -94,9 +102,11 @@ import {
   AiIcon,
 } from "./icons";
 import { useFileStore } from "../store";
+import { useI18n, type TranslationKey } from "./composables/useI18n";
 
 // 导入 package.json 中的版本信息
 const version = __APP_VERSION__;
+const { t, languageLabel, toggleLocale } = useI18n();
 
 const openDashboard = () => {
   window.dispatchEvent(
@@ -124,7 +134,7 @@ const handleOpenExplorer = (): void => {
 
 interface PanelDefinition {
   id: string;
-  label: string;
+  label: TranslationKey;
   icon: Component;
   component: Component;
 }
@@ -132,16 +142,16 @@ interface PanelDefinition {
 const ACTIVE_PANEL_KEY = "cherry-sidebar-active-panel";
 
 const panels = shallowRef<PanelDefinition[]>([
-  { id: "recent", label: "最近文档", icon: FileIcon, component: RecentPanel },
+  { id: "recent", label: "recentDocuments", icon: FileIcon, component: RecentPanel },
   {
     id: "explorer",
-    label: "知识库",
+    label: "knowledgeBase",
     icon: FolderIcon,
     component: ExplorerPanel,
   },
   {
     id: "graph",
-    label: "知识图谱",
+    label: "knowledgeGraph",
     icon: GraphIcon,
     component: KnowledgeGraphSummary,
   },
@@ -285,6 +295,25 @@ onUnmounted(() => {
   background: #2d3442;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.language-btn {
+  width: 44px;
+  height: 32px;
+  border: 1px solid #4a5262;
+  border-radius: 8px;
+  background: #2a3040;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
+}
+
+.language-btn:hover {
+  background: #3a4355;
+  border-color: #68748a;
 }
 
 .version-info {

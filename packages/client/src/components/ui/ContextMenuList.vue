@@ -1,14 +1,17 @@
 <template>
   <div>
-    <div v-if="menuType === 'recent'" class="menu-item" @click="$emit('remove', filePath)">从列表中移除</div>
-    <div class="menu-item" @click="$emit('copy-path', filePath)">复制文件路径</div>
-    <div class="menu-item" @click="$emit('open-in-explorer', filePath)">在资源管理器中打开</div>
+    <div v-if="menuType === 'recent'" class="menu-item" @click="$emit('remove', filePath)">{{ t("removeFromList") }}</div>
+    <div class="menu-item" @click="$emit('copy-path', filePath)">{{ t("copyFilePath") }}</div>
+    <div class="menu-item" @click="$emit('open-in-explorer', filePath)">{{ t("openInExplorer") }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { FileInfo } from '../types';
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   file: FileInfo | null;

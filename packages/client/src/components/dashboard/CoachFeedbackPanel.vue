@@ -2,10 +2,10 @@
   <section class="coach-panel">
     <div class="coach-panel__header">
       <div>
-        <p class="coach-panel__kicker">COACH FEEDBACK</p>
-        <h3>方法反馈</h3>
+        <p class="coach-panel__kicker">{{ t('coachFeedback') }}</p>
+        <h3>{{ t('methodFeedback') }}</h3>
       </div>
-      <span class="coach-panel__badge">{{ cards.length }} 条</span>
+      <span class="coach-panel__badge">{{ cards.length }} {{ t('count') }}</span>
     </div>
 
     <div class="coach-panel__list">
@@ -17,19 +17,19 @@
         <p class="coach-card__judgement">{{ card.judgement }}</p>
         <dl class="coach-card__detail">
           <div>
-            <dt>现象证据</dt>
+            <dt>{{ t('evidence') }}</dt>
             <dd>{{ card.evidence }}</dd>
           </div>
           <div>
-            <dt>本质问题</dt>
+            <dt>{{ t('essence') }}</dt>
             <dd>{{ card.essence }}</dd>
           </div>
           <div>
-            <dt>下一步建议</dt>
+            <dt>{{ t('nextAction') }}</dt>
             <dd>{{ card.action }}</dd>
           </div>
           <div>
-            <dt>做事方法建议</dt>
+            <dt>{{ t('methodAdvice') }}</dt>
             <dd>{{ card.method }}</dd>
           </div>
         </dl>
@@ -39,6 +39,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
+
 export interface CoachFeedbackCard {
   id: string;
   title: string;
@@ -55,9 +59,9 @@ defineProps<{
 }>();
 
 function levelLabel(level: CoachFeedbackCard['level']) {
-  if (level === 'positive') return '正向';
-  if (level === 'warning') return '提醒';
-  return '关注';
+  if (level === 'positive') return t('positive');
+  if (level === 'warning') return t('warning');
+  return t('attention');
 }
 </script>
 

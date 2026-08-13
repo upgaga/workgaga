@@ -2,12 +2,12 @@
   <div class="dashboard-container">
     <header class="hero-panel">
       <div class="hero-copy">
-        <p class="eyebrow">WORKGAGA CONTROL CENTER</p>
-        <h1>工作台</h1>
+        <p class="eyebrow">{{ t('workgagaControlCenter') }}</p>
+        <h1>{{ t('controlCenter') }}</h1>
         <p class="hero-subtitle">{{ currentDate }} · {{ dailyStatusText }}</p>
         <div class="hero-progress">
           <div class="progress-meta">
-            <span>今日任务完成率</span>
+            <span>{{ t('todayCompletionRate') }}</span>
             <strong>{{ todayProgress }}%</strong>
           </div>
           <div class="progress-track">
@@ -19,12 +19,12 @@
         </div>
       </div>
       <div class="hero-actions">
-        <button class="ghost-btn" @click="goToday">回到今天</button>
+        <button class="ghost-btn" @click="goToday">{{ t('backToToday') }}</button>
         <button
           class="primary-btn hero-btn"
           @click="showHistoryPanel = !showHistoryPanel"
         >
-          {{ showHistoryPanel ? "收起历史时间线" : "查看历史时间线" }}
+          {{ showHistoryPanel ? t('collapseHistory') : t('viewHistory') }}
         </button>
       </div>
     </header>
@@ -35,8 +35,8 @@
     >
       <div class="panel-header">
         <div>
-          <p class="panel-kicker">HISTORY TIMELINE</p>
-          <h2>历史待办时间线</h2>
+          <p class="panel-kicker">{{ t('historyTimeline') }}</p>
+          <h2>{{ t('historyTodosTimeline') }}</h2>
           <p>{{ historyPanelDescription }}</p>
         </div>
         <div class="history-switch">
@@ -45,14 +45,14 @@
             :class="{ active: historyMode === 'completed' }"
             @click="historyMode = 'completed'"
           >
-            完成记录 {{ historicalCompletedTodos.length }}
+            {{ t('completedRecords') }} {{ historicalCompletedTodos.length }}
           </button>
           <button
             class="history-switch-btn"
             :class="{ active: historyMode === 'legacy' }"
             @click="historyMode = 'legacy'"
           >
-            遗留事项 {{ historicalTodos.length }}
+            {{ t('legacyItems') }} {{ historicalTodos.length }}
           </button>
         </div>
       </div>
@@ -90,7 +90,7 @@
                     historyMode === 'completed' && isHistoricalCatchUp(todo)
                   "
                   class="status-tag catch-up"
-                  >历史补完</span
+                  >{{ t('historicalCatchUp') }}</span
                 >
                 <div
                   class="priority-indicator inline"
@@ -121,40 +121,40 @@
       <div class="overview-card card-blue">
         <span class="card-kicker">FOCUS</span>
         <span class="overview-value">{{ todayUndoneCount }}</span>
-        <span class="overview-label">今日进行中</span>
-        <small>保持专注，推进核心任务</small>
+        <span class="overview-label">{{ t('focusToday') }}</span>
+        <small>{{ t('focusHint') }}</small>
       </div>
       <div class="overview-card card-orange">
-        <span class="card-kicker">LEGACY</span>
+        <span class="card-kicker">{{ t('legacy') }}</span>
         <span class="overview-value">{{
           dashboardStore.historicalTodos.length
         }}</span>
-        <span class="overview-label">历史遗留</span>
-        <small>建议尽快清理沉积事项</small>
+        <span class="overview-label">{{ t('legacy') }}</span>
+        <small>{{ t('legacyHint') }}</small>
       </div>
       <div class="overview-card card-green">
-        <span class="card-kicker">CALENDAR</span>
+        <span class="card-kicker">{{ t('calendar') }}</span>
         <span class="overview-value">{{ currentMonthSchedules.length }}</span>
-        <span class="overview-label">本月日程</span>
-        <small>掌控本月节奏</small>
+        <span class="overview-label">{{ t('calendar') }}</span>
+        <small>{{ t('calendarHint') }}</small>
       </div>
       <div class="overview-card card-violet">
-        <span class="card-kicker">KNOWLEDGE</span>
+        <span class="card-kicker">{{ t('knowledge') }}</span>
         <span class="overview-value">{{ knowledgeStore.noteCount }}</span>
-        <span class="overview-label">知识库文档</span>
-        <small>沉淀知识资产</small>
+        <span class="overview-label">{{ t('knowledgeBase') }}</span>
+        <small>{{ t('knowledgeHint') }}</small>
       </div>
       <div class="overview-card card-cyan">
         <span class="card-kicker">GRAPH</span>
         <span class="overview-value">{{ knowledgeStore.linkCount }}</span>
-        <span class="overview-label">知识连接</span>
-        <small>让信息形成网络</small>
+        <span class="overview-label">{{ t('graph') }}</span>
+        <small>{{ t('graphHint') }}</small>
       </div>
       <div class="overview-card card-pink">
-        <span class="card-kicker">HEALTH</span>
+        <span class="card-kicker">{{ t('health') }}</span>
         <span class="overview-value">{{ knowledgeStore.missingCount }}</span>
-        <span class="overview-label">孤立/缺失</span>
-        <small>可继续优化链接质量</small>
+        <span class="overview-label">{{ t('health') }}</span>
+        <small>{{ t('healthHint') }}</small>
       </div>
     </section>
 
@@ -162,9 +162,9 @@
       <section class="glass-panel task-panel">
         <div class="panel-header">
           <div>
-            <p class="panel-kicker">TASK COCKPIT</p>
-            <h2>任务驾驶舱</h2>
-            <p>从计划池进入专注舱，完成后即时复盘</p>
+            <p class="panel-kicker">{{ t('taskCockpit') }}</p>
+            <h2>{{ t('taskCockpitTitle') }}</h2>
+            <p>{{ t('taskCockpitHint') }}</p>
           </div>
         </div>
 
@@ -172,13 +172,13 @@
           <input
             v-model="newTodoContent"
             class="text-input"
-            placeholder="添加今日待办..."
+            :placeholder="t('addTodayTodoPlaceholder')"
           />
           <select v-model="newTodoScene" class="select-input scene-input">
-            <option value="deep_work">深度工作</option>
-            <option value="collaboration">协作沟通</option>
-            <option value="admin">行政事务</option>
-            <option value="learning">学习复盘</option>
+            <option value="deep_work">{{ t('deepWork') }}</option>
+            <option value="collaboration">{{ t('collaboration') }}</option>
+            <option value="admin">{{ t('admin') }}</option>
+            <option value="learning">{{ t('learning') }}</option>
           </select>
           <input
             v-model="newTodoEstimatedMinutes"
@@ -186,24 +186,24 @@
             type="number"
             min="5"
             step="5"
-            placeholder="预估分钟"
+            :placeholder="t('estimateMinutes')"
           />
           <input
             v-model="newTodoTags"
             class="text-input tags-input"
-            placeholder="标签，用逗号分隔"
+            :placeholder="t('tagsComma')"
           />
           <select v-model="newTodoPriority" class="select-input">
-            <option value="high">高优先级</option>
-            <option value="medium">中优先级</option>
-            <option value="low">低优先级</option>
+            <option value="high">{{ t('highPriority') }}</option>
+            <option value="medium">{{ t('mediumPriority') }}</option>
+            <option value="low">{{ t('lowPriority') }}</option>
           </select>
           <button
             class="primary-btn"
             :disabled="!newTodoContent.trim()"
             @click="handleAddTodo"
           >
-            添加今日待办
+            {{ t('addTodayTodo') }}
           </button>
         </div>
 
@@ -216,8 +216,8 @@
 
         <div class="section-block">
           <div class="section-title">
-            <h3>今日计划池</h3>
-            <span>{{ todayPlannedTodos.length }} 项</span>
+            <h3>{{ t('todayPlanPool') }}</h3>
+            <span>{{ todayPlannedTodos.length }} {{ t('items') }}</span>
           </div>
           <ul class="item-list">
             <TodoRow
@@ -238,15 +238,15 @@
               @unlink-schedule="dashboardStore.unlinkTodoFromSchedule"
             />
             <li v-if="todayPlannedTodos.length === 0" class="empty-state">
-              计划池已经清空，可以从历史遗留中拉起一项，或者新增新的重点任务。
+              {{ t('planEmpty') }}
             </li>
           </ul>
         </div>
 
         <div class="section-block completed-block">
           <div class="section-title">
-            <h3>今日已完成</h3>
-            <span>{{ todayCompletedTodos.length }} 项</span>
+            <h3>{{ t('todayCompleted') }}</h3>
+            <span>{{ todayCompletedTodos.length }} {{ t('items') }}</span>
           </div>
           <ul class="item-list">
             <TodoRow
@@ -255,7 +255,7 @@
               :todo="todo"
               :schedules="currentMonthSchedules"
               :meta-text="todayCompletedMeta(todo)"
-              :status-tag="isHistoricalCatchUp(todo) ? '历史补完' : ''"
+              :status-tag="isHistoricalCatchUp(todo) ? t('historicalCatchUp') : ''"
               status-tag-class="catch-up"
               @toggle="handleTodoToggle"
               @remove="dashboardStore.removeTodo"
@@ -268,15 +268,15 @@
               @unlink-schedule="dashboardStore.unlinkTodoFromSchedule"
             />
             <li v-if="todayCompletedTodos.length === 0" class="empty-state">
-              今天完成的任务会显示在这里，包含历史补完事项。
+              {{ t('completedEmpty') }}
             </li>
           </ul>
         </div>
 
         <div class="section-block legacy-block">
           <div class="section-title">
-            <h3>历史遗留</h3>
-            <span>{{ historicalTodos.length }} 项</span>
+            <h3>{{ t('legacy') }}</h3>
+            <span>{{ historicalTodos.length }} {{ t('items') }}</span>
           </div>
           <ul class="item-list">
             <TodoRow
@@ -300,7 +300,7 @@
               @unlink-schedule="dashboardStore.unlinkTodoFromSchedule"
             />
             <li v-if="historicalTodos.length === 0" class="empty-state">
-              没有历史遗留任务，节奏很棒。
+              {{ t('noLegacy') }}
             </li>
           </ul>
         </div>
@@ -309,9 +309,9 @@
       <section class="glass-panel calendar-panel">
         <div class="panel-header calendar-header">
           <div>
-            <p class="panel-kicker">SMART CALENDAR</p>
-            <h2>智能月历</h2>
-            <p>点击日期查看当天日程与待办热度</p>
+            <p class="panel-kicker">{{ t('smartCalendar') }}</p>
+            <h2>{{ t('smartCalendarTitle') }}</h2>
+            <p>{{ t('smartCalendarHint') }}</p>
           </div>
           <div class="month-switcher">
             <button class="icon-control" @click="changeMonth(-1)">‹</button>
@@ -344,10 +344,10 @@
               <i v-if="cell.todoCount" class="dot todo-dot"></i>
             </span>
             <span v-if="cell.scheduleCount" class="cell-pill schedule-pill"
-              >{{ cell.scheduleCount }} 日程</span
+              >{{ cell.scheduleCount }} {{ t('scheduleCount') }}</span
             >
             <span v-if="cell.todoCount" class="cell-pill todo-pill"
-              >{{ cell.todoCount }} 待办</span
+              >{{ cell.todoCount }} {{ t('todos') }}</span
             >
           </button>
         </div>
@@ -355,28 +355,28 @@
         <aside class="date-detail">
           <div class="detail-header">
             <div>
-              <p class="panel-kicker">DATE DETAIL</p>
+              <p class="panel-kicker">{{ t('dateDetail') }}</p>
               <h3>{{ selectedDateLabel }}</h3>
               <p>
-                {{ selectedDateSchedules.length }} 个日程 ·
-                {{ selectedDateTodos.length }} 个待办
+                {{ selectedDateSchedules.length }} {{ t('selectedSchedules') }} ·
+                {{ selectedDateTodos.length }} {{ t('selectedTodos') }}
               </p>
             </div>
           </div>
 
           <div class="date-form-card schedule-create">
             <div class="form-heading">
-              <strong>添加指定时间日程</strong>
-              <span>用于记录某一天、某个时间段内确定要发生的安排</span>
+              <strong>{{ t('addScheduleTitle') }}</strong>
+              <span>{{ t('addScheduleHint') }}</span>
             </div>
             <div class="date-form-row schedule-form-row">
               <input
                 v-model="newScheduleTitle"
                 class="text-input"
-                placeholder="输入日程内容..."
+                :placeholder="t('schedulePlaceholder')"
               />
               <label class="date-field-label">
-                <span>日期</span>
+                <span>{{ t('date') }}</span>
                 <input
                   v-model="newScheduleDate"
                   class="date-input"
@@ -384,7 +384,7 @@
                 />
               </label>
               <label class="date-field-label">
-                <span>开始</span>
+                <span>{{ t('start') }}</span>
                 <input
                   class="time-input"
                   type="time"
@@ -393,7 +393,7 @@
                 />
               </label>
               <label class="date-field-label">
-                <span>结束</span>
+                <span>{{ t('end') }}</span>
                 <input
                   class="time-input"
                   type="time"
@@ -406,24 +406,24 @@
                 :disabled="!newScheduleTitle.trim()"
                 @click="handleAddSchedule"
               >
-                添加日程
+                {{ t('addSchedule') }}
               </button>
             </div>
           </div>
 
           <div class="date-form-card selected-todo-create">
             <div class="form-heading">
-              <strong>添加指定日期待办</strong>
-              <span>用于记录需要完成的任务，可直接选择未来日期</span>
+              <strong>{{ t('addDateTodoTitle') }}</strong>
+              <span>{{ t('addDateTodoHint') }}</span>
             </div>
             <div class="date-form-row todo-form-row">
               <input
                 v-model="newSelectedDateTodoContent"
                 class="text-input"
-                placeholder="输入待办内容..."
+                :placeholder="t('todoPlaceholder')"
               />
               <label class="date-field-label">
-                <span>计划日期</span>
+                <span>{{ t('plannedDate') }}</span>
                 <input
                   v-model="newSelectedDateTodoDate"
                   class="date-input"
@@ -434,10 +434,10 @@
                 v-model="newSelectedDateTodoScene"
                 class="select-input scene-input"
               >
-                <option value="deep_work">深度工作</option>
-                <option value="collaboration">协作沟通</option>
-                <option value="admin">行政事务</option>
-                <option value="learning">学习复盘</option>
+                <option value="deep_work">{{ t('deepWork') }}</option>
+                <option value="collaboration">{{ t('collaboration') }}</option>
+                <option value="admin">{{ t('admin') }}</option>
+                <option value="learning">{{ t('learning') }}</option>
               </select>
               <input
                 v-model="newSelectedDateTodoEstimatedMinutes"
@@ -445,34 +445,34 @@
                 type="number"
                 min="5"
                 step="5"
-                placeholder="预估分钟"
+                :placeholder="t('estimateMinutes')"
               />
               <input
                 v-model="newSelectedDateTodoTags"
                 class="text-input tags-input"
-                placeholder="标签，用逗号分隔"
+                :placeholder="t('tagsComma')"
               />
               <select
                 v-model="newSelectedDateTodoPriority"
                 class="select-input"
               >
-                <option value="high">高优先级</option>
-                <option value="medium">中优先级</option>
-                <option value="low">低优先级</option>
+                <option value="high">{{ t('highPriority') }}</option>
+                <option value="medium">{{ t('mediumPriority') }}</option>
+                <option value="low">{{ t('lowPriority') }}</option>
               </select>
               <button
                 class="secondary-primary-btn"
                 :disabled="!newSelectedDateTodoContent.trim()"
                 @click="handleAddSelectedDateTodo"
               >
-                添加待办
+                {{ t('addTodayTodo') }}
               </button>
             </div>
           </div>
 
           <div class="detail-columns">
             <div class="detail-card">
-              <h4>当天日程</h4>
+              <h4>{{ t('todaySchedules') }}</h4>
               <ul class="compact-list">
                 <li
                   v-for="schedule in selectedDateSchedules"
@@ -523,21 +523,21 @@
                   <div class="row-actions">
                     <button
                       class="icon-btn"
-                      title="关联当前文档"
+                      :title="t('linkCurrentDocument')"
                       @click="linkCurrentDocumentToSchedule(schedule.id)"
                     >
                       <LinkIcon :size="15" />
                     </button>
                     <button
                       class="icon-btn"
-                      title="选择文档"
+                      :title="t('selectDocument')"
                       @click="selectAndLinkDocumentToSchedule(schedule.id)"
                     >
                       <FolderIcon :size="15" />
                     </button>
                     <button
                       class="icon-btn danger"
-                      title="删除"
+                      :title="t('delete')"
                       @click="dashboardStore.removeSchedule(schedule.id)"
                     >
                       <TrashIcon :size="15" />
@@ -548,13 +548,13 @@
                   v-if="selectedDateSchedules.length === 0"
                   class="empty-state compact"
                 >
-                  这一天还没有安排。
+                  {{ t('noSchedules') }}
                 </li>
               </ul>
             </div>
 
             <div class="detail-card">
-              <h4>当天待办</h4>
+              <h4>{{ t('todayTodos') }}</h4>
               <ul class="compact-list">
                 <TodoRow
                   v-for="todo in selectedDateTodos"
@@ -584,7 +584,7 @@
                   v-if="selectedDateTodos.length === 0"
                   class="empty-state compact"
                 >
-                  这一天暂无待办。
+                  {{ t('noTodos') }}
                 </li>
               </ul>
             </div>
@@ -630,6 +630,7 @@ import { useKnowledgeGraphStore } from "../store/modal/knowledgeGraph";
 import { useFileStore } from "../store/modal/file";
 import { FolderIcon, LinkIcon, RestoreIcon, TrashIcon } from "./icons";
 import { notifyError, notifySuccess } from "../utils/notifications";
+import { useI18n } from "./composables/useI18n";
 import CoachFeedbackPanel from "./dashboard/CoachFeedbackPanel.vue";
 import FocusZone from "./dashboard/FocusZone.vue";
 import LegacyRescheduleModal, {
@@ -789,10 +790,10 @@ const TodoRow = defineComponent({
                 "button",
                 {
                   class: "todo-checkbox",
-                  title: props.todo.completed ? "标记为未完成" : "标记为已完成",
+                  title: props.todo.completed ? t('markIncomplete') : t('markComplete'),
                   "aria-label": props.todo.completed
-                    ? "标记为未完成"
-                    : "标记为已完成",
+                    ? t('markIncomplete')
+                    : t('markComplete'),
                   onClick: () => emit("toggle", props.todo.id),
                 },
                 props.todo.completed ? "✓" : "",
@@ -829,7 +830,8 @@ const TodoRow = defineComponent({
                       class: "schedule-tag",
                       onClick: () => emit("unlink-schedule", props.todo.id),
                     },
-                    `日程：${scheduleTitle.value} ×`,
+                    `${t('scheduleLinkPrefix')}${scheduleTitle.value} ×`,
+
                   )
                 : null,
             ]),
@@ -895,7 +897,7 @@ const TodoRow = defineComponent({
                 },
               },
               [
-                h("option", { value: "" }, "关联到日程"),
+                h("option", { value: "" }, t('linkScheduleOption')),
                 ...props.schedules.map((schedule) =>
                   h(
                     "option",
@@ -912,7 +914,7 @@ const TodoRow = defineComponent({
                   "button",
                   {
                     class: "icon-btn promote",
-                    title: "移至今日",
+                    title: t('moveTodayTitle'),
                     onClick: () => emit("activate", props.todo.id),
                   },
                   [h(RestoreIcon, { size: 15 })],
@@ -923,10 +925,10 @@ const TodoRow = defineComponent({
                   "button",
                   {
                     class: "icon-btn annotate",
-                    title: "标注并改期",
+                    title: t('annotateRescheduleTitle'),
                     onClick: () => emit("manage-legacy", props.todo.id),
                   },
-                  "改",
+                  t('editShort'),
                 )
               : null,
             props.showFocusAction && !props.todo.completed
@@ -934,7 +936,7 @@ const TodoRow = defineComponent({
                   "button",
                   {
                     class: "icon-btn focus",
-                    title: "进入专注",
+                    title: t('enterFocus'),
                     onClick: () => emit("focus", props.todo.id),
                   },
                   [h(FocusIcon, { size: 15 })],
@@ -944,7 +946,7 @@ const TodoRow = defineComponent({
               "button",
               {
                 class: "icon-btn",
-                title: "关联当前文档",
+                title: t('linkCurrentDocument'),
                 onClick: () => emit("link-current", props.todo.id),
               },
               [h(LinkIcon, { size: 15 })],
@@ -953,7 +955,7 @@ const TodoRow = defineComponent({
               "button",
               {
                 class: "icon-btn",
-                title: "选择文档",
+                title: t('selectDocument'),
                 onClick: () => emit("select-doc", props.todo.id),
               },
               [h(FolderIcon, { size: 15 })],
@@ -962,7 +964,7 @@ const TodoRow = defineComponent({
               "button",
               {
                 class: "icon-btn danger",
-                title: "删除",
+                title: t('delete'),
                 onClick: () => emit("remove", props.todo.id),
               },
               [h(TrashIcon, { size: 15 })],
@@ -973,6 +975,7 @@ const TodoRow = defineComponent({
   },
 });
 
+const { t, locale } = useI18n();
 const dashboardStore = useDashboardStore();
 const knowledgeStore = useKnowledgeGraphStore();
 const fileStore = useFileStore();
@@ -999,9 +1002,9 @@ const newScheduleStartTime = ref("");
 const newScheduleEndTime = ref("");
 const liveNow = ref(Date.now());
 
-const weekLabels = ["一", "二", "三", "四", "五", "六", "日"];
+const weekLabels = computed(() => [t('weekdayMonday'), t('weekdayTuesday'), t('weekdayWednesday'), t('weekdayThursday'), t('weekdayFriday'), t('weekdaySaturday'), t('weekdaySunday')]);
 const currentDate = computed(() =>
-  new Date().toLocaleDateString("zh-CN", {
+  new Date().toLocaleDateString(locale.value, {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -1018,14 +1021,14 @@ const selectedDateTodos = computed(() =>
   dashboardStore.todosByDate(selectedDate.value),
 );
 const selectedDateLabel = computed(() =>
-  new Date(`${selectedDate.value}T00:00:00`).toLocaleDateString("zh-CN", {
+  new Date(`${selectedDate.value}T00:00:00`).toLocaleDateString(locale.value, {
     month: "long",
     day: "numeric",
     weekday: "long",
   }),
 );
 const visibleMonthTitle = computed(() =>
-  new Date(`${visibleMonth.value}-01T00:00:00`).toLocaleDateString("zh-CN", {
+  new Date(`${visibleMonth.value}-01T00:00:00`).toLocaleDateString(locale.value, {
     year: "numeric",
     month: "long",
   }),
@@ -1052,7 +1055,7 @@ const todayProgress = computed(() =>
 );
 const dailyStatusText = computed(
   () =>
-    `计划池 ${todayPlannedTodos.value.length} 个 · 专注中 ${focusedTodo.value ? "1" : "0"} 个 · 今日已完成 ${todayCompletedTodos.value.length} 个`,
+    `${t('planPoolStatus')} ${todayPlannedTodos.value.length} ${t('items')} · ${t('focusingStatus')} ${focusedTodo.value ? "1" : "0"} ${t('items')} · ${t('completedTodayStatus')} ${todayCompletedTodos.value.length} ${t('items')}`, 
 );
 const focusedTodoElapsedMinutes = computed(() => {
   if (!focusedTodo.value?.focusStartedAt) return 0;
@@ -1095,56 +1098,47 @@ const coachFeedbackCards = computed<CoachFeedbackCard[]>(() => {
       evidence: `当前历史遗留 ${overdueCount} 项，其中 ${undocumentedLegacyCount} 项还没有原因说明，${blockedLegacyCount} 项已标出阻塞。`,
       essence:
         "只看到“逾期结果”而没有“延期原因”和“重启条件”，任务就会持续沉积。",
-      action:
-        "今天先挑 1 项最旧遗留，补清原因和阻塞，再决定是移到今天推进还是顺延到明确日期。",
-      method:
-        "以后每次延期都要写清“为什么没做 + 被什么卡住 + 下次何时再做”，让待办从堆积清单变成可重启系统。",
+      action: t('feedbackLegacyAction'),
+      method: t('feedbackLegacyMethod'),
     });
   }
 
   if (!focusedTodo.value && plannedCount >= 5) {
     cards.push({
       id: "focus-start",
-      title: "启动成本偏高",
+      title: t('feedbackFocusTitle'),
       level: "attention",
-      judgement:
-        "计划池偏大但专注舱空闲，说明你现在更像是在管理任务，而不是推进任务。",
+      judgement: t('feedbackFocusJudgement'),
       evidence: `今日计划池 ${plannedCount} 项，当前没有正在专注的任务。`,
-      essence: "缺少从“知道要做什么”到“立刻开始做”的单线程启动动作。",
-      action: "立刻选 1 项进入专注舱，优先挑 30-60 分钟内能形成结果的任务。",
-      method:
-        "每天只允许一个 Doing 任务，其他事情停留在计划池，靠状态隔离降低切换成本。",
+      essence: t('feedbackFocusEssence'),
+      action: t('feedbackFocusAction'),
+      method: t('feedbackFocusMethod'),
     });
   }
 
   if (completedWithEstimate.length > 0 && overrunCount > 0) {
     cards.push({
       id: "estimate-drift",
-      title: "时间预估偏乐观",
+      title: t('feedbackEstimateTitle'),
       level: overrunCount >= 2 ? "warning" : "attention",
-      judgement:
-        "你对任务耗时的判断有偏乐观迹象，容易让日计划看起来可排满、实际上难落地。",
+      judgement: t('feedbackEstimateJudgement'),
       evidence: `今天有 ${completedWithEstimate.length} 项记录了预估与实耗，其中 ${overrunCount} 项超出预估 50% 以上。`,
-      essence: "任务颗粒度偏粗，或把协作沟通、上下文切换这些隐性成本漏掉了。",
-      action: "对超过 60 分钟的任务，下次先拆成可验收的小闭环，再分别估时。",
-      method:
-        "先估最小可交付动作，再额外留出 20%-30% 缓冲，不用一次性估完整件事。",
+      essence: t('feedbackEstimateEssence'),
+      action: t('feedbackEstimateAction'),
+      method: t('feedbackEstimateMethod'),
     });
   }
 
   if (focusedTodo.value && focusedTodoElapsedMinutes.value >= 90) {
     cards.push({
       id: "long-focus",
-      title: "当前专注已进入深水区",
+      title: t('feedbackLongTitle'),
       level: "attention",
-      judgement:
-        "持续长时间专注是好事，但如果没有阶段性检查，容易陷入“很忙但不收口”。",
-      evidence: `当前专注任务已持续约 ${focusedTodoElapsedMinutes.value} 分钟。`,
-      essence: "执行很深入，但缺少中途校准和收口节点。",
-      action:
-        "现在做一次 2 分钟中检：写下已完成、卡点和下一步，再决定继续还是先收一个阶段结果。",
-      method:
-        "对深度任务按 45-90 分钟切段，每一段都留下可见产出，而不是只堆时间。",
+      judgement: t('feedbackLongJudgement'),
+      evidence: `${t('feedbackLongEvidencePrefix')}${focusedTodoElapsedMinutes.value} ${t('minutes')}${t('feedbackLongEvidenceSuffix')}`,
+      essence: t('feedbackLongEssence'),
+      action: t('feedbackLongAction'),
+      method: t('feedbackLongMethod'),
     });
   }
 
@@ -1157,22 +1151,21 @@ const coachFeedbackCards = computed<CoachFeedbackCard[]>(() => {
         "你已经形成了“计划后推进、推进后收口”的良性节奏，可以开始沉淀自己的工作模板。",
       evidence: `今日已完成 ${todayDone.length} 项，暂无历史遗留，复盘中没有明显卡壳信号。`,
       essence: "当前节奏说明任务颗粒度和推进顺序是匹配的。",
-      action: "把今天最顺的一项任务复盘成模板：前置条件、关键动作、完成标准。",
-      method: "不要只复盘问题，也要复盘成功路径，把顺手的方法固化成个人 SOP。",
+      action: t('feedbackPositiveAction'),
+      method: t('feedbackPositiveMethod'),
     });
   }
 
   if (cards.length === 0) {
     cards.push({
       id: "baseline",
-      title: "反馈面板已启动",
+      title: t('feedbackBaselineTitle'),
       level: "positive",
-      judgement:
-        "工作台已经开始记录计划、专注和复盘，接下来重点是把数据喂成稳定的个人工作方法。",
-      evidence: "当前数据量还不大，教练卡片会随着更多复盘信息逐渐变得更准确。",
-      essence: "先把记录动作做轻，反馈质量会随着数据积累自然变强。",
-      action: "优先在完成任务时补充“实际耗时 + 执行感受 + 一句复盘”。",
-      method: "高质量反馈来自持续、低摩擦的数据输入，而不是一次性写很长总结。",
+      judgement: t('feedbackBaselineJudgement'),
+      evidence: t('feedbackBaselineEvidence'),
+      essence: t('feedbackBaselineEssence'),
+      action: t('feedbackBaselineAction'),
+      method: t('feedbackBaselineMethod'),
     });
   }
 
@@ -1208,13 +1201,13 @@ const groupedHistoryTodos = computed(() => {
 });
 const historyPanelDescription = computed(() =>
   historyMode.value === "completed"
-    ? "按实际完成日期回顾任务收口情况，历史补完会显示在完成当天"
-    : "按原计划日期查看仍未完成的历史任务，便于集中清理遗留事项",
+    ? t('historyCompletedDescription')
+    : t('historyLegacyDescription'),
 );
 const historyEmptyText = computed(() =>
   historyMode.value === "completed"
-    ? "暂无历史完成记录。"
-    : "暂无历史遗留事项。",
+    ? t('emptyHistoryCompleted')
+    : t('emptyHistoryLegacy'),
 );
 
 const completingTodo = ref<TodoItem | null>(null);
@@ -1364,10 +1357,10 @@ function handleAddTodo() {
     newTodoScene.value = "deep_work";
     newTodoEstimatedMinutes.value = "";
     newTodoTags.value = "";
-    notifySuccess(`已添加今日待办：${created.content}`);
+    notifySuccess(`${t('addTodoSuccess')}${created.content}`);
   } catch (error) {
     notifyError(
-      `添加今日待办失败: ${error instanceof Error ? error.message : String(error)}`,
+      `${t('addTodoFailed')}: ${error instanceof Error ? error.message : String(error)}`, 
     );
   }
 }
@@ -1395,10 +1388,10 @@ function handleAddSelectedDateTodo() {
     newSelectedDateTodoScene.value = "deep_work";
     newSelectedDateTodoEstimatedMinutes.value = "";
     newSelectedDateTodoTags.value = "";
-    notifySuccess(`已添加待办：${created.content}`);
+    notifySuccess(`${t('addSelectedTodoSuccess')}${created.content}`);
   } catch (error) {
     notifyError(
-      `添加待办失败: ${error instanceof Error ? error.message : String(error)}`,
+      `${t('addSelectedTodoFailed')}: ${error instanceof Error ? error.message : String(error)}`, 
     );
   }
 }
@@ -1484,8 +1477,8 @@ function formatScheduleTime(schedule: ScheduleItem) {
   if (schedule.startTime && schedule.endTime)
     return `${schedule.startTime} - ${schedule.endTime}`;
   if (schedule.startTime) return schedule.startTime;
-  if (schedule.endTime) return `截至 ${schedule.endTime}`;
-  return "全天";
+  if (schedule.endTime) return `${t('atTime')} ${schedule.endTime}`;
+  return t('scheduleTimeAllDay');
 }
 
 function extractFileName(path: string) {
@@ -1494,7 +1487,7 @@ function extractFileName(path: string) {
 
 function linkCurrentDocumentToTodo(todoId: string) {
   const currentPath = fileStore.currentFilePath;
-  if (!currentPath) return notifyError("当前没有打开的文档，无法关联");
+  if (!currentPath) return notifyError(t('noOpenDocumentLink'));
   dashboardStore.linkDocumentsToTodo(todoId, [
     { path: currentPath, name: extractFileName(currentPath) },
   ]);
@@ -1502,7 +1495,7 @@ function linkCurrentDocumentToTodo(todoId: string) {
 
 function linkCurrentDocumentToSchedule(scheduleId: string) {
   const currentPath = fileStore.currentFilePath;
-  if (!currentPath) return notifyError("当前没有打开的文档，无法关联");
+  if (!currentPath) return notifyError(t('noOpenDocumentLink'));
   dashboardStore.linkDocumentsToSchedule(scheduleId, [
     { path: currentPath, name: extractFileName(currentPath) },
   ]);
@@ -1530,7 +1523,7 @@ async function selectDocuments() {
     return paths.map((path) => ({ path, name: extractFileName(path) }));
   } catch (error) {
     notifyError(
-      `选择文件失败: ${error instanceof Error ? error.message : String(error)}`,
+      `${t('fileSelectFailed')}: ${error instanceof Error ? error.message : String(error)}`, 
     );
     return [];
   }
@@ -1544,7 +1537,7 @@ function openLinkedDocument(path: string) {
 
 function formatDateTime(timestamp?: number) {
   if (!timestamp) return "-";
-  return new Date(timestamp).toLocaleString("zh-CN", {
+  return new Date(timestamp).toLocaleString(locale.value, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -1555,7 +1548,7 @@ function formatDateTime(timestamp?: number) {
 
 function formatTime(timestamp?: number) {
   if (!timestamp) return "--:--";
-  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+  return new Date(timestamp).toLocaleTimeString(locale.value, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -1563,7 +1556,7 @@ function formatTime(timestamp?: number) {
 }
 
 function formatDateLabel(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("zh-CN", {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(locale.value, {
     month: "2-digit",
     day: "2-digit",
   });
@@ -1581,22 +1574,22 @@ function isHistoricalCatchUp(todo: TodoItem) {
 
 function todayCompletedMeta(todo: TodoItem) {
   const completedText = todo.completedAt
-    ? formatTime(todo.completedAt)
-    : "今日";
-  if (!isHistoricalCatchUp(todo)) return `${completedText} 完成`;
-  return `${completedText} 完成 · 原计划 ${formatDateLabel(todo.plannedDate)}`;
+      ? formatTime(todo.completedAt)
+      : t('today');
+  if (!isHistoricalCatchUp(todo)) return `${completedText} ${t('completedSuffix')}`;
+  return `${completedText} ${t('completedSuffix')} · ${t('plannedPrefix')} ${formatDateLabel(todo.plannedDate)}`;
 }
 
 function historicalTodoMeta(todo: TodoItem) {
   const parts = [
-    `原计划 ${formatDateLabel(todo.plannedDate)}`,
-    `已逾期 ${overdueDays(todo.plannedDate)} 天`,
+    `${t('plannedPrefix')} ${formatDateLabel(todo.plannedDate)}`,
+    `${t('overduePrefix')} ${overdueDays(todo.plannedDate)} ${t('items')}`, 
   ];
   if (todo.carryoverReason) {
-    parts.push(`原因：${todo.carryoverReason}`);
+    parts.push(`${t('reasonPrefix')}${todo.carryoverReason}`);
   }
   if (todo.blockedReason) {
-    parts.push(`阻塞：${todo.blockedReason}`);
+    parts.push(`${t('blockedPrefix')}${todo.blockedReason}`);
   }
   return parts.join(" · ");
 }
@@ -1605,29 +1598,29 @@ function historyTodoMeta(todo: TodoItem) {
   if (historyMode.value === "completed") {
     const completedText = todo.completedAt
       ? formatDateTime(todo.completedAt)
-      : "已完成";
-    if (!isHistoricalCatchUp(todo)) return `${completedText} 完成`;
-    return `${completedText} 完成 · 原计划 ${formatDateLabel(todo.plannedDate)}`;
+      : t('completed');
+    if (!isHistoricalCatchUp(todo)) return `${completedText} ${t('completedSuffix')}`;
+    return `${completedText} ${t('completedSuffix')} · ${t('plannedPrefix')} ${formatDateLabel(todo.plannedDate)}`;
   }
   return historicalTodoMeta(todo);
 }
 
 function priorityLabel(priority?: TodoItem["priority"]) {
-  if (priority === "high") return "高优先级";
-  if (priority === "low") return "低优先级";
-  return "中优先级";
+  if (priority === "high") return t('highPriority');
+  if (priority === "low") return t('lowPriority');
+  return t('mediumPriority');
 }
 
 function sceneLabel(scene?: TodoItem["scene"]) {
-  if (scene === "collaboration") return "协作沟通";
-  if (scene === "admin") return "行政事务";
-  if (scene === "learning") return "学习复盘";
-  return "深度工作";
+  if (scene === "collaboration") return t('collaboration');
+  if (scene === "admin") return t('admin');
+  if (scene === "learning") return t('learning');
+  return t('deepWork');
 }
 
 function carryoverTag(todo: TodoItem) {
-  if (todo.carryoverKind === "active_reschedule") return "主动延期";
-  if (todo.carryoverKind === "passive_delay") return "被动拖延";
+  if (todo.carryoverKind === "active_reschedule") return t('activeReschedule');
+  if (todo.carryoverKind === "passive_delay") return t('passiveDelay');
   return "";
 }
 
@@ -1638,9 +1631,9 @@ function carryoverTagClass(todo: TodoItem) {
 }
 
 function feelingLabel(feeling?: TodoFeeling) {
-  if (feeling === "blocked") return "执行感受：中途卡壳";
-  if (feeling === "tiring") return "执行感受：较为耗能";
-  if (feeling === "smooth") return "执行感受：顺畅推进";
+  if (feeling === "blocked") return `${t('executionFeeling')}: ${t('blockedFeeling')}`;
+  if (feeling === "tiring") return `${t('executionFeeling')}: ${t('tiring')}`;
+  if (feeling === "smooth") return `${t('executionFeeling')}: ${t('smooth')}`;
   return "";
 }
 
@@ -1665,16 +1658,16 @@ function parseTagInput(value: unknown) {
 function todoMetaText(todo: TodoItem) {
   const parts = [todo.plannedDate];
   if (todo.status === "doing") {
-    parts.push("专注中");
+    parts.push(t('focusingStatus'));
   }
   if (todo.scene) {
     parts.push(sceneLabel(todo.scene));
   }
   if (todo.estimatedMinutes) {
-    parts.push(`预估 ${todo.estimatedMinutes} 分钟`);
+    parts.push(`${t('estimatedPrefix')} ${todo.estimatedMinutes} ${t('estimateMinutes')}`);
   }
   if (todo.actualMinutes) {
-    parts.push(`实耗 ${todo.actualMinutes} 分钟`);
+    parts.push(`${t('actualPrefix')} ${todo.actualMinutes} ${t('estimateMinutes')}`);
   }
   const feeling = feelingLabel(todo.processFeeling);
   if (feeling) {

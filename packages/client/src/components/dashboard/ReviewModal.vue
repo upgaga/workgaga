@@ -2,55 +2,55 @@
   <div v-if="todo" class="modal-overlay" @click="$emit('cancel')">
     <div class="glass-modal completion-modal" @click.stop>
       <div class="modal-header">
-        <h3>完成待办</h3>
+        <h3>{{ t('completeTodo') }}</h3>
         <button class="icon-btn" @click="$emit('cancel')">×</button>
       </div>
       <div class="modal-body">
         <div class="todo-summary-box">
           <strong>{{ todo.content }}</strong>
-          <span v-if="todo.estimatedMinutes" class="summary-hint"> 预估 {{ todo.estimatedMinutes }} 分钟 </span>
+          <span v-if="todo.estimatedMinutes" class="summary-hint"> {{ t('estimated') }} {{ todo.estimatedMinutes }} {{ t('items') }} </span>
         </div>
 
         <div class="review-grid">
           <div class="form-group">
-            <label>实际耗时（分钟）</label>
-            <input v-model="actualMinutes" class="text-input" type="number" min="1" step="5" placeholder="例如 45" />
+            <label>{{ t('reviewMinutes') }}</label>
+            <input v-model="actualMinutes" class="text-input" type="number" min="1" step="5" :placeholder="t('example45')" />
           </div>
           <div class="form-group">
-            <label>执行感受</label>
+            <label>{{ t('reviewFeeling') }}</label>
             <select v-model="completionFeeling" class="select-input">
-              <option value="smooth">顺畅推进</option>
-              <option value="blocked">中途卡壳</option>
-              <option value="tiring">较为耗能</option>
+              <option value="smooth">{{ t('smooth') }}</option>
+              <option value="blocked">{{ t('blockedFeeling') }}</option>
+              <option value="tiring">{{ t('tiring') }}</option>
             </select>
           </div>
         </div>
 
         <div class="form-group">
-          <label>复盘记录（可选）</label>
+          <label>{{ t('reviewNote') }}</label>
           <textarea
             v-model="completionNote"
             class="text-input textarea"
-            placeholder="记录结果、偏差原因、下次要怎么做得更顺..."
+            :placeholder="t('reviewNotePlaceholder')"
             rows="3"
           ></textarea>
         </div>
 
         <div class="form-group">
-          <label>衍生后续待办（可选）</label>
+          <label>{{ t('derivedTodos') }}</label>
           <div class="derived-todo-input">
             <input
               v-model="newDerivedTodoContent"
               class="text-input"
-              placeholder="输入后续待办内容..."
+              :placeholder="t('derivedPlaceholder')"
               @keyup.enter="addTempDerivedTodo"
             />
             <select v-model="newDerivedTodoPriority" class="select-input compact-select">
-              <option value="high">高</option>
-              <option value="medium">中</option>
-              <option value="low">低</option>
+              <option value="high">{{ t('priorityHighShort') }}</option>
+              <option value="medium">{{ t('priorityMediumShort') }}</option>
+              <option value="low">{{ t('priorityLowShort') }}</option>
             </select>
-            <button class="ghost-btn" @click="addTempDerivedTodo">添加</button>
+            <button class="ghost-btn" @click="addTempDerivedTodo">{{ t('add') }}</button>
           </div>
           <ul v-if="tempDerivedTodos.length" class="temp-derived-list">
             <li v-for="(dt, index) in tempDerivedTodos" :key="`${dt.content}-${index}`" class="temp-derived-item">
@@ -62,7 +62,7 @@
         </div>
 
         <div class="form-group">
-          <label>补充关联文档（可选）</label>
+          <label>{{ t('supplementDocs') }}</label>
           <div class="linked-docs">
             <button v-for="doc in tempLinkedDocs" :key="doc.path" class="doc-chip" @click="$emit('open-doc', doc.path)">
               {{ doc.name }}
@@ -70,14 +70,14 @@
             </button>
           </div>
           <div class="doc-actions">
-            <button class="ghost-btn doc-btn" @click="linkCurrentDocumentToCompletion">关联当前文档</button>
-            <button class="ghost-btn doc-btn" @click="selectAndLinkDocumentToCompletion">选择文档</button>
+            <button class="ghost-btn doc-btn" @click="linkCurrentDocumentToCompletion">{{ t('linkCurrentDocument') }}</button>
+            <button class="ghost-btn doc-btn" @click="selectAndLinkDocumentToCompletion">{{ t('selectDocument') }}</button>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="ghost-btn" @click="$emit('cancel')">取消</button>
-        <button class="primary-btn" @click="submit">确认完成</button>
+        <button class="ghost-btn" @click="$emit('cancel')">{{ t('cancel') }}</button>
+        <button class="primary-btn" @click="submit">{{ t('confirmComplete') }}</button>
       </div>
     </div>
   </div>
@@ -87,7 +87,10 @@
 import { watch, ref } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { notifyError } from '../../utils/notifications';
+import { useI18n } from '../composables/useI18n';
 import type { LinkedDocument, TodoFeeling, TodoItem } from '../../store/modal/dashboard';
+
+const { t } = useI18n();
 
 export interface ReviewModalSubmitPayload {
   note?: string;
@@ -154,9 +157,9 @@ function extractFileName(path: string) {
 }
 
 function priorityLabel(priority?: TodoItem['priority']) {
-  if (priority === 'high') return '高';
-  if (priority === 'low') return '低';
-  return '中';
+  if (priority === 'high') return t('priorityHighShort');
+  if (priority === 'low') return t('priorityLowShort');
+  return t('priorityMediumShort');
 }
 
 function addTempDerivedTodo() {
@@ -179,7 +182,9 @@ function removeTempLinkedDoc(path: string) {
 
 function linkCurrentDocumentToCompletion() {
   const currentPath = props.currentFilePath;
-  if (!currentPath) return notifyError('当前没有打开的文档，无法关联');
+  if (!currentPath) {
+    return notifyError(t('noOpenDocument'));
+  }
   const doc = { path: currentPath, name: extractFileName(currentPath) };
   if (!tempLinkedDocs.value.some((item) => item.path === doc.path)) {
     tempLinkedDocs.value.push(doc);
@@ -202,7 +207,7 @@ async function selectAndLinkDocumentToCompletion() {
       }
     });
   } catch (error) {
-    notifyError(`选择文件失败: ${error instanceof Error ? error.message : String(error)}`);
+    notifyError(`${t('selectFileFailed')}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

@@ -3,18 +3,18 @@
     <aside class="keyword-panel">
       <header class="panel-header">
         <div class="panel-heading">
-          <span aria-hidden="true">标签/元数据</span>
+          <span aria-hidden="true">{{ t("tagsMetadata") }}</span>
           <span class="panel-summary"
-            >{{ props.tags.length }} 个标签 ·
-            {{ keywordList.length }} 个关键词</span
+            >{{ props.tags.length }} {{ t("tagsCount") }} ·
+            {{ keywordList.length }} {{ t("keywordsCount") }}</span
           >
         </div>
         <button
           class="collapse-button"
           aria-expanded="true"
           aria-controls="keyword-panel-content"
-          aria-label="收起标签和元数据"
-          title="收起标签和元数据"
+          :aria-label="t('collapseTagsMetadata')"
+          :title="t('collapseTagsMetadata')"
           @click="emit('update:visible', false)"
         >
           收起
@@ -26,11 +26,11 @@
             <strong>文档标签</strong>
             <button
               class="text-button"
-              title="添加标签"
-              aria-label="添加标签"
+              :title="t('addTag')"
+              :aria-label="t('addTag')"
               @click="startAddingTag"
             >
-              添加
+              {{ t("add") }}
             </button>
           </div>
           <form
@@ -41,29 +41,29 @@
             <input
               v-model="tagEditingText"
               autofocus
-              placeholder="输入标签"
+              :placeholder="t('enterTag')"
               @keydown.esc="cancelTagEditing"
             />
-            <button type="submit">确定</button>
+            <button type="submit">{{ t("confirm") }}</button>
             <button type="button" class="secondary" @click="cancelTagEditing">
-              取消
+              {{ t("cancel") }}
             </button>
           </form>
-          <div v-if="props.tags.length === 0" class="empty">暂未添加标签</div>
+          <div v-if="props.tags.length === 0" class="empty">{{ t("noTags") }}</div>
           <TransitionGroup v-else name="tag" tag="div" class="tag-list">
             <span v-for="tag in props.tags" :key="tag" class="tag-chip">
               <button
                 class="tag-label"
-                title="编辑标签"
-                :aria-label="`编辑标签 ${tag}`"
+                :title="t('editTag')"
+                :aria-label="`${t('editTag')} ${tag}`"
                 @click="startEditingTag(tag)"
               >
                 {{ tag }}
               </button>
               <button
                 class="tag-remove"
-                title="删除标签"
-                :aria-label="`删除标签 ${tag}`"
+                :title="t('removeTag')"
+                :aria-label="`${t('removeTag')} ${tag}`"
                 @click="removeTag(tag)"
               >
                 ×
@@ -71,10 +71,10 @@
             </span>
           </TransitionGroup>
           <div v-if="deletedTag" class="undo-banner" role="status">
-            已删除标签“{{ deletedTag }}”
+            {{ t("removedTag") }} “{{ deletedTag }}”
             <button
-              title="撤销删除标签"
-              aria-label="撤销删除标签"
+              :title="t('undoRemoveTag')"
+              :aria-label="t('undoRemoveTag')"
               @click="undoRemoveTag"
             >
               撤销
@@ -83,19 +83,19 @@
         </section>
 
         <div class="panel-title">
-          <h3>文档关键词</h3>
-          <span>{{ keywordList.length }} 项</span>
+          <h3>{{ t("documentKeywords") }}</h3>
+          <span>{{ keywordList.length }} {{ t("items") }}</span>
         </div>
         <section class="keyword-section">
           <div class="section-title">
-            <strong>手动关键词</strong
+            <strong>{{ t("manualKeywords") }}</strong
             ><button
               class="text-button"
-              title="添加关键词"
-              aria-label="添加关键词"
+              :title="t('add')"
+              :aria-label="t('add')"
               @click="startAdding"
             >
-              添加
+              {{ t("add") }}
             </button>
           </div>
           <form
@@ -106,11 +106,11 @@
             <input
               v-model="editingText"
               autofocus
-              placeholder="输入关键词"
+              :placeholder="t('enterKeyword')"
               @keydown.esc="cancelEditing"
             />
             <select v-model="editingParent">
-              <option value="">无父级</option>
+              <option value="">{{ t("noParent") }}</option>
               <option
                 v-for="parent in parentKeywordOptions"
                 :key="parent.normalized || parent.text"
@@ -122,12 +122,12 @@
             <span v-if="keywordValidationMessage" class="keyword-validation">
               {{ keywordValidationMessage }}
             </span>
-            <button type="submit">确定</button><button type="button" class="secondary" @click="cancelEditing">
-              取消
+            <button type="submit">{{ t("confirm") }}</button><button type="button" class="secondary" @click="cancelEditing">
+              {{ t("cancel") }}
             </button>
           </form>
           <div v-if="keywordList.length === 0" class="empty">
-            暂未添加关键词
+            {{ t("noKeywords") }}
           </div>
           <ul v-else class="keyword-list">
             <li
@@ -140,22 +140,22 @@
               </span>
               <span class="keyword-text">
                 {{ item.keyword.text }}
-                <small v-if="item.keyword.parent">父级：{{ item.keyword.parent }}</small>
-                <small v-if="item.childCount">子级：{{ item.childCount }}</small>
+                <small v-if="item.keyword.parent">{{ t("parent") }}: {{ item.keyword.parent }}</small>
+                <small v-if="item.childCount">{{ t("child") }}: {{ item.childCount }}</small>
               </span>
               <span class="keyword-actions"
                 ><button
-                  title="编辑关键词"
-                  aria-label="编辑关键词"
+                  :title="t('editKeyword')"
+                  :aria-label="t('editKeyword')"
                   @click="startEditing(item.keyword.text)"
                 >
-                  编辑</button
+                  {{ t("editKeyword") }}</button
                 ><button
-                  title="删除关键词"
-                  aria-label="删除关键词"
+                  :title="t('removeKeyword')"
+                  :aria-label="t('removeKeyword')"
                   @click="removeKeyword(item.keyword.text)"
                 >
-                  删除
+                  {{ t("removeKeyword") }}
                 </button></span
               >
             </li>
@@ -163,27 +163,27 @@
         </section>
         <section class="keyword-section">
           <div class="section-title">
-            <strong>关键词识别候选</strong
+            <strong>{{ t("keywordCandidates") }}</strong
             ><button
               class="text-button"
-              title="重新识别关键词"
-              aria-label="重新识别关键词"
+              :title="t('reidentifyKeywords')"
+              :aria-label="t('reidentifyKeywords')"
               :disabled="!props.markdown || extracting"
               @click="refreshCandidates"
             >
-              {{ extracting ? "识别中..." : "重新识别" }}
+              {{ extracting ? t("identifying") : t("reidentifyKeywords") }}
             </button>
           </div>
           <div v-if="extractionMessage" class="extraction-message">
             {{ extractionMessage }}
           </div>
           <div v-if="lastExtraction" class="extraction-meta">
-            最近识别：{{ lastExtraction.durationMs?.toFixed(1) || "0.0" }}ms ·
+            {{ t("lastIdentified") }}: {{ lastExtraction.durationMs?.toFixed(1) || "0.0" }}ms ·
             {{ extractionPath
-            }}<span v-if="lastExtraction.degraded"> · 已降级</span>
+            }}<span v-if="lastExtraction.degraded"> · {{ t("degraded") }}</span>
           </div>
           <div v-if="candidates.length === 0" class="empty">
-            暂无新的候选关键词
+            {{ t("noCandidateKeywords") }}
           </div>
           <ul v-else class="candidate-list">
             <li
@@ -193,22 +193,22 @@
               <div>
                 <span class="keyword-text">{{ candidate.text }}</span
                 ><small v-if="candidate.score"
-                  >评分 {{ candidate.score.toFixed(1) }}</small
+                  >{{ t("score") }} {{ candidate.score.toFixed(1) }}</small
                 >
               </div>
               <span class="keyword-actions"
                 ><button
-                  title="确认候选关键词"
-                  aria-label="确认候选关键词"
+                  :title="t('accept')"
+                  :aria-label="t('accept')"
                   @click="acceptCandidate(candidate)"
                 >
-                  确认</button
+                  {{ t("accept") }}</button
                 ><button
-                  title="忽略候选关键词"
-                  aria-label="忽略候选关键词"
+                  :title="t('ignore')"
+                  :aria-label="t('ignore')"
                   @click="ignoreCandidate(candidate)"
                 >
-                  忽略
+                  {{ t("ignore") }}
                 </button></span
               >
             </li>
@@ -227,6 +227,9 @@ import {
   extractKeywordsWithFrontmatter,
   normalizeKeyword,
 } from "../utils/keywordExtraction";
+import { useI18n } from "./composables/useI18n";
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -339,14 +342,14 @@ const extractionEnabled = computed(
 );
 const ignoredSet = computed(() => new Set(props.ignored.map(normalizeKeyword)));
 const extractionPath = computed(() => {
-  if (!lastExtraction.value) return "未知路径";
+  if (!lastExtraction.value) return t("unknownPath");
   if (lastExtraction.value.fallback || lastExtraction.value.degraded)
-    return "算法回退";
+    return t("algorithmFallback");
   if (lastExtraction.value.extractor === "llm")
     return `LLM${lastExtraction.value.modelId ? ` (${lastExtraction.value.modelId})` : ""}`;
   if (lastExtraction.value.extractor === "local-ai")
-    return `本地 AI${lastExtraction.value.modelId ? ` (${lastExtraction.value.modelId})` : ""}`;
-  return "算法";
+    return `${t("localAi")}${lastExtraction.value.modelId ? ` (${lastExtraction.value.modelId})` : ""}`;
+  return t("algorithm");
 });
 
 const parseNote = () => {
@@ -412,13 +415,13 @@ const refreshCandidates = async () => {
         !ignoredSet.value.has(normalizeKeyword(keyword.text)),
     );
     extractionMessage.value = extraction.degraded
-      ? `识别失败，已降级为算法：${extraction.error || "本地算法"}`
+      ? `${t("extractionFallback")}${extraction.error || t("algorithm")}`
       : extraction.mode === "algorithm"
-        ? "已使用算法识别"
-        : "已使用配置的 AI 识别";
+        ? t("extractionAlgorithm")
+        : t("extractionAi");
   } catch (error) {
     extractionMessage.value =
-      error instanceof Error ? error.message : "识别失败，已降级为算法";
+      error instanceof Error ? error.message : t("extractionFailed");
     const extraction = extractKeywordsWithFrontmatter(parseNote(), {
       topN: aiAssistantStore.settings.maxKeywords,
     });
@@ -514,7 +517,7 @@ const submitKeyword = () => {
       normalizeKeyword(keyword.normalized || keyword.text) !== originalId,
   );
   if (duplicate) {
-    keywordValidationMessage.value = "同一文档内不能创建重复关键词";
+    keywordValidationMessage.value = t("duplicateKeyword");
     return;
   }
   const parentId = normalizeKeyword(editingParent.value);
@@ -523,11 +526,11 @@ const submitKeyword = () => {
       normalizeKeyword(keyword.normalized || keyword.text) === parentId,
   );
   if (parentId && !parent) {
-    keywordValidationMessage.value = "父关键词不存在";
+    keywordValidationMessage.value = t("parentKeywordMissing");
     return;
   }
   if (parentId && (parentId === originalId || getDescendantIds(originalId).has(parentId))) {
-    keywordValidationMessage.value = "不能将当前关键词或其子级设为父级";
+    keywordValidationMessage.value = t("invalidKeywordParent");
     return;
   }
   const original = props.keywords.find(

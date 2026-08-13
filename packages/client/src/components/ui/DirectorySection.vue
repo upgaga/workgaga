@@ -2,13 +2,13 @@
   <div class="directory-section">
     <div class="section-header">
       <div class="section-title-container" @click="$emit('toggle')">
-        <span class="section-title">目录管理</span>
+        <span class="section-title">{{ t("directoryManagement") }}</span>
         <span v-if="subtitle" class="section-subtitle">{{ subtitle }}</span>
         <div class="expand-arrow" :class="{ expanded: expanded }">
           <ArrowIcon :size="12" :direction="expanded ? 'down' : 'right'" />
         </div>
       </div>
-      <button class="refresh-btn" @click="$emit('refresh')" title="刷新目录">
+      <button class="refresh-btn" @click="$emit('refresh')" :title="t('refreshDirectory')">
         <RefreshIcon :size="14" />
       </button>
     </div>
@@ -21,6 +21,9 @@
 
 <script setup lang="ts">
 import { ArrowIcon, RefreshIcon } from '../icons';
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
 
 defineProps<{
   expanded: boolean;

@@ -1,6 +1,6 @@
 <template>
   <div class="recent-panel">
-    <div v-if="!sortedRecentFiles.length" class="empty">暂无最近访问文档</div>
+    <div v-if="!sortedRecentFiles.length" class="empty">{{ t("noRecentDocuments") }}</div>
 
     <ul v-else class="recent-list">
       <li
@@ -42,7 +42,9 @@ import { useFileManager } from './composables/useFileManager';
 import { formatTimestamp } from './fileUtils';
 import ContextMenu from './ui/ContextMenu.vue';
 import type { FileInfo } from './types';
+import { useI18n } from './composables/useI18n';
 
+const { t } = useI18n();
 const fileStore = useFileStore();
 const knowledgeGraphStore = useKnowledgeGraphStore();
 const folderManagerRef = ref(null);
@@ -70,10 +72,10 @@ const openRecent = async (filePath: string): Promise<void> => {
 
 const formatTime = (time: number): string => formatTimestamp(time);
 
-const getKnowledgeBaseName = (file: FileInfo): string => {
+const getKnowledgeBaseName = (file: Pick<FileInfo, 'path' | 'knowledgeBaseName'>): string => {
   if (file.knowledgeBaseName) return file.knowledgeBaseName;
   const knowledgeBase = knowledgeGraphStore.knowledgeBaseForPath(file.path);
-  return knowledgeBase?.name || '未关联知识库';
+  return knowledgeBase?.name || t("unlinkedKnowledgeBase");
 };
 
 const showMenu = (event: MouseEvent, file: any): void => {

@@ -2,12 +2,12 @@
   <section class="graph-summary-panel">
     <div class="summary-icon">G</div>
     <div class="summary-copy">
-      <strong>知识图谱</strong>
-      <span v-if="graphStore.loading">正在索引知识库…</span>
-      <span v-else-if="graphStore.error" class="error">索引异常</span>
+      <strong>{{ t('knowledgeGraph') }}</strong>
+      <span v-if="graphStore.loading">{{ t('indexing') }}</span>
+      <span v-else-if="graphStore.error" class="error">{{ t('indexComplete') }}</span>
       <span v-else
-        >{{ graphStore.noteCount }} 个文档 ·
-        {{ graphStore.linkCount }} 条关系</span
+        >{{ graphStore.noteCount }} {{ t('documents') }} ·
+        {{ graphStore.linkCount }} {{ t('connections') }}</span
       >
     </div>
     <button
@@ -15,15 +15,17 @@
       :disabled="graphStore.loading"
       @click="openGraph"
     >
-      打开
+      {{ t('open') }}
     </button>
   </section>
 </template>
 
 <script setup lang="ts">
 import { useKnowledgeGraphStore } from "../store";
+import { useI18n } from "./composables/useI18n";
 
 const graphStore = useKnowledgeGraphStore();
+const { t } = useI18n();
 
 const openGraph = (): void => {
   window.dispatchEvent(

@@ -1,13 +1,13 @@
 <template>
   <div class="explorer-panel">
     <div v-if="!knowledgeGraphStore.vaultPath" class="empty-state">
-      <div class="empty-title">还没有打开知识库</div>
-      <p>选择一个本地目录作为知识库，系统会自动识别其中的 Markdown 文档。</p>
-      <button class="primary-action" @click="openKnowledgeBase">打开知识库</button>
+      <div class="empty-title">{{ t('openKnowledgeBase') }}</div>
+      <p>{{ t('openKnowledgeBasePrompt') }}</p>
+      <button class="primary-action" @click="openKnowledgeBase">{{ t('openKnowledgeBase') }}</button>
       <section v-if="knowledgeGraphStore.vaults.length" class="other-vaults">
-        <div class="other-vaults-title">其他知识库 · {{ knowledgeGraphStore.vaults.length }} 个</div>
+        <div class="other-vaults-title">{{ t('otherKnowledgeBases') }} · {{ knowledgeGraphStore.vaults.length }} {{ t('knowledgeBaseCount') }}</div>
         <button v-for="vault in knowledgeGraphStore.vaults" :key="vault.path" class="collapsed-vault" @click="switchKnowledgeBase(vault.path)">
-          <span>▶ {{ vault.name }}</span><small>{{ vaultDocumentCount(vault.path) }} 篇</small>
+          <span>▶ {{ vault.name }}</span><small>{{ vaultDocumentCount(vault.path) }} {{ t('documentsCount') }}</small>
         </button>
       </section>
     </div>
@@ -17,18 +17,18 @@
         <button class="vault-heading" :title="knowledgeGraphStore.vaultPath" @click="documentsExpanded = !documentsExpanded">
           <span class="expand-icon">{{ documentsExpanded ? '▼' : '▶' }}</span>
           <span class="vault-name">{{ knowledgeGraphStore.vaultName }}</span>
-          <span v-if="knowledgeGraphStore.loading" class="status-pill">同步中</span>
+          <span v-if="knowledgeGraphStore.loading" class="status-pill">{{ t('syncing') }}</span>
         </button>
-        <div class="vault-meta">{{ currentDocumentCount }} 篇文档 · {{ indexedTimeText }}</div>
+        <div class="vault-meta">{{ currentDocumentCount }} {{ t('documentCountLabel') }} · {{ indexedTimeText }}</div>
       </section>
 
       <section v-if="documentsExpanded" class="document-section">
         <div class="document-toolbar">
-          <span>文档</span>
-          <button class="new-document-button" @click="createDocument">+ 新建</button>
+          <span>{{ t('documents') }}</span>
+          <button class="new-document-button" @click="createDocument">+ {{ t('newDocument') }}</button>
         </div>
         <p v-if="knowledgeGraphStore.error" class="error-message">{{ knowledgeGraphStore.error }}</p>
-        <div v-if="documentTree.length === 0" class="muted">暂无 Markdown 文档</div>
+        <div v-if="documentTree.length === 0" class="muted">{{ t('noMarkdownDocuments') }}</div>
         <ul v-else class="tree-list">
           <li v-for="row in documentRows" :key="row.path" class="tree-item">
             <div class="tree-row" :class="{ directory: row.isDirectory, current: isCurrentDocument(row.filePath) }" :style="{ paddingLeft: `${row.depth * 14 + 4}px` }">
@@ -36,16 +36,16 @@
                 <span class="node-icon">{{ row.isDirectory ? (row.expanded ? '▼' : '▶') : 'MD' }}</span>
                 <span class="node-name">{{ row.isDirectory ? row.name : row.name }}</span>
               </button>
-              <button v-if="row.filePath" class="more-button" title="文档操作" @click.stop="toggleDocumentMenu(row.filePath)">⋯</button>
+              <button v-if="row.filePath" class="more-button" :title="t('documentActions')" @click.stop="toggleDocumentMenu(row.filePath)">⋯</button>
               <div v-if="activeMenuPath === row.filePath" class="document-menu">
-                <button @click="beginRename(row.filePath, row.name)">重命名</button>
-                <button class="danger-text" @click="deleteDocument(row.filePath, row.name)">删除</button>
+                <button @click="beginRename(row.filePath, row.name)">{{ t('rename') }}</button>
+                <button class="danger-text" @click="deleteDocument(row.filePath, row.name)">{{ t('delete') }}</button>
               </div>
             </div>
             <div v-if="renamingPath === row.filePath" class="rename-row" :style="{ paddingLeft: `${row.depth * 14 + 28}px` }">
               <input ref="renameInput" v-model="renameValue" autofocus @keyup.enter="submitRename(row.filePath)" @keyup.esc="cancelRename" />
-              <button title="保存" @click="submitRename(row.filePath)">✓</button>
-              <button title="取消" @click="cancelRename">×</button>
+              <button :title="t('save')" @click="submitRename(row.filePath)">✓</button>
+              <button :title="t('cancel')" @click="cancelRename">×</button>
               <small v-if="renameError">{{ renameError }}</small>
             </div>
           </li>
@@ -53,9 +53,9 @@
       </section>
 
       <section v-if="otherVaults.length" class="other-vaults">
-        <div class="other-vaults-title">其他知识库 · {{ otherVaults.length }} 个</div>
+        <div class="other-vaults-title">{{ t('otherKnowledgeBases') }} · {{ otherVaults.length }} {{ t('documentsCount') }}</div>
         <button v-for="vault in otherVaults" :key="vault.path" class="collapsed-vault" :title="vault.path" @click="switchKnowledgeBase(vault.path)">
-          <span>▶ {{ vault.name }}</span><small>{{ vaultDocumentCount(vault.path) }} 篇</small>
+          <span>▶ {{ vault.name }}</span><small>{{ vaultDocumentCount(vault.path) }} {{ t('documentsCount') }}</small>
         </button>
       </section>
     </template>
@@ -70,6 +70,7 @@ import { useFileStore, useKnowledgeGraphStore } from '../store';
 import { WINDOW_EVENTS } from '../constants/events';
 import { notifyError, notifySuccess } from '../utils/notifications';
 import type { KnowledgeGraphNode } from './types';
+import { useI18n } from './composables/useI18n';
 
 interface TreeNode {
   name: string;
@@ -86,6 +87,7 @@ interface TreeRow extends TreeNode {
 
 const knowledgeGraphStore = useKnowledgeGraphStore();
 const fileStore = useFileStore();
+const { t } = useI18n();
 const documentsExpanded = ref(true);
 const activeMenuPath = ref<string | null>(null);
 const renamingPath = ref<string | null>(null);
@@ -95,8 +97,8 @@ const renameError = ref('');
 const normalizePath = (path: string): string => path.replace(/\\/g, '/');
 
 const formatTime = (time?: number | null): string => {
-  if (!time) return '尚未完成索引';
-  return `最近索引：${new Date(time).toLocaleString()}`;
+  if (!time) return t('notIndexed');
+  return `${t('recentlyIndexed')}${new Date(time).toLocaleString()}`;
 };
 
 const currentGraph = computed(() => {
@@ -166,7 +168,7 @@ const documentTree = computed<TreeNode[]>(() => {
   return sortTree(roots);
 });
 
-const indexedTimeText = computed(() => formatTime(knowledgeGraphStore.lastIndexedAt).replace('最近索引：', ''));
+const indexedTimeText = computed(() => formatTime(knowledgeGraphStore.lastIndexedAt).replace(t('recentlyIndexed'), ''));
 const otherVaults = computed(() =>
   knowledgeGraphStore.vaults.filter((vault) => !isCurrentVault(vault.path)),
 );
@@ -230,9 +232,9 @@ const openKnowledgeBase = async (): Promise<void> => {
     const path = Array.isArray(selected) ? selected[0] : selected;
     await knowledgeGraphStore.setKnowledgeBase(path);
     notifyKnowledgeBaseChanged(path);
-    notifySuccess('知识库已打开');
+    notifySuccess(t('knowledgeBaseOpened'));
   } catch (error) {
-    notifyError(`打开知识库失败: ${error instanceof Error ? error.message : String(error)}`);
+    notifyError(`${t('openKnowledgeBaseFailed')}${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
@@ -271,18 +273,18 @@ const cancelRename = (): void => {
 const submitRename = async (path: string): Promise<void> => {
   const value = renameValue.value.trim();
   if (!value) {
-    renameError.value = '名称不能为空';
+    renameError.value = t('nameRequired');
     return;
   }
   if (/[\\/:*?"<>|]/.test(value)) {
-    renameError.value = '名称不能包含特殊字符';
+    renameError.value = t('invalidName');
     return;
   }
   const extension = path.match(/\.(md|markdown)$/i)?.[0] || '.md';
   const directory = path.replace(/[\\/]([^\\/]*)$/, '');
   const targetPath = `${directory}/${value}${extension}`;
   if (targetPath !== path && await exists(targetPath)) {
-    renameError.value = '该目录下已存在同名文档';
+    renameError.value = t('duplicateDocument');
     return;
   }
   if (targetPath === path) {
@@ -295,23 +297,23 @@ const submitRename = async (path: string): Promise<void> => {
     window.dispatchEvent(new CustomEvent(WINDOW_EVENTS.DOCUMENT_RENAMED, { detail: { oldPath: path, newPath: targetPath } }));
     cancelRename();
     await knowledgeGraphStore.refresh();
-    notifySuccess('文档已重命名');
+    notifySuccess(t('documentRenamed'));
   } catch (error) {
-    renameError.value = `重命名失败：${error instanceof Error ? error.message : String(error)}`;
+    renameError.value = `${t('renameFailed')}${error instanceof Error ? error.message : String(error)}`;
   }
 };
 
 const deleteDocument = async (path: string, name: string): Promise<void> => {
   activeMenuPath.value = null;
-  if (!window.confirm(`确定要删除“${name}”吗？\\n\\n文档将从当前知识库中删除，此操作无法撤销。`)) return;
+  if (!window.confirm(`${t('deleteConfirmTitle')}“${name}”${t('deleteConfirmSuffix')}\\n\\n${t('deleteDocumentWarning')}`)) return;
   try {
     await remove(path);
     fileStore.removeRecentFile(path);
     window.dispatchEvent(new CustomEvent(WINDOW_EVENTS.DOCUMENT_DELETED, { detail: { path } }));
     await knowledgeGraphStore.refresh();
-    notifySuccess('文档已删除');
+    notifySuccess(t('documentDeleted'));
   } catch (error) {
-    notifyError(`删除文档失败：${error instanceof Error ? error.message : String(error)}`);
+    notifyError(`${t('deleteDocumentFailed')}${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
@@ -325,7 +327,7 @@ const switchKnowledgeBase = async (path: string): Promise<void> => {
     documentsExpanded.value = true;
     notifyKnowledgeBaseChanged(path);
   } catch (error) {
-    notifyError(`切换知识库失败：${error instanceof Error ? error.message : String(error)}`);
+    notifyError(`${t('switchKnowledgeBaseFailed')}${error instanceof Error ? error.message : String(error)}`);
   }
 };
 

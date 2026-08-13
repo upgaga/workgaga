@@ -1,8 +1,8 @@
 <template>
   <div class="sidebar-header">
-    <h3 class="sidebar-title">文件管理</h3>
+    <h3 class="sidebar-title">{{ t("fileManagementTitle") }}</h3>
     <div class="header-actions">
-      <button class="toggle-btn" @click="$emit('toggle')" :title="collapsed ? '展开' : '收起'">
+      <button class="toggle-btn" @click="$emit('toggle')" :title="collapsed ? t('expand') : t('collapse')">
         <ArrowIcon :size="16" :direction="collapsed ? 'right' : 'left'" />
       </button>
     </div>
@@ -11,6 +11,9 @@
 
 <script setup lang="ts">
 import { ArrowIcon } from '../icons';
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
 
 defineProps<{
   collapsed: boolean;

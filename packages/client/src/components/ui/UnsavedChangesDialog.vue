@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DIALOGS } from '../../constants/i18n';
+import { useI18n } from "../composables/useI18n";
 
 export type UnsavedDialogResult = 'save' | 'discard' | 'cancel';
 
@@ -11,6 +11,8 @@ const emit = defineEmits<{
   (_e: 'close', _result: UnsavedDialogResult): void;
 }>();
 
+const { t } = useI18n();
+
 const handleAction = (result: UnsavedDialogResult): void => {
   emit('close', result);
 };
@@ -21,17 +23,17 @@ const handleAction = (result: UnsavedDialogResult): void => {
     <Transition name="dialog-fade">
       <div v-if="visible" class="dialog-overlay" @click.self="handleAction('cancel')">
         <div class="dialog-content">
-          <h3 class="dialog-title">{{ DIALOGS.UNSAVED_CHANGES.TITLE }}</h3>
-          <p class="dialog-message">{{ DIALOGS.UNSAVED_CHANGES.MESSAGE }}</p>
+          <h3 class="dialog-title">{{ t("unsavedChanges") }}</h3>
+          <p class="dialog-message">{{ t("unsavedChangesMessage") }}</p>
           <div class="dialog-actions">
             <button class="btn btn-primary" @click="handleAction('save')">
-              {{ DIALOGS.UNSAVED_CHANGES.SAVE_AND_CONTINUE }}
+              {{ t("saveAndContinue") }}
             </button>
             <button class="btn btn-danger" @click="handleAction('discard')">
-              {{ DIALOGS.UNSAVED_CHANGES.DISCARD }}
+              {{ t("discardChanges") }}
             </button>
             <button class="btn btn-secondary" @click="handleAction('cancel')">
-              {{ DIALOGS.UNSAVED_CHANGES.CANCEL }}
+              {{ t("cancel") }}
             </button>
           </div>
         </div>

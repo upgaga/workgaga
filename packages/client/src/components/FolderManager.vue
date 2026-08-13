@@ -11,7 +11,7 @@
         @context-menu="(_event, _file) => $emit('context-menu', _event, _file)"
       />
 
-      <div v-if="recentDirectories.length === 0" class="empty-state">暂无访问过的目录</div>
+      <div v-if="recentDirectories.length === 0" class="empty-state">{{ t("noRecentDirectories") }}</div>
     </div>
   </div>
 </template>
@@ -21,6 +21,9 @@ import { computed } from 'vue';
 import { useFileStore } from '../store';
 import { useDirectoryManager } from './composables/useDirectoryManager';
 import DirectoryTree from './DirectoryTree.vue';
+import { useI18n } from './composables/useI18n';
+
+const { t } = useI18n();
 
 // 定义组件事件
 const emit = defineEmits<{

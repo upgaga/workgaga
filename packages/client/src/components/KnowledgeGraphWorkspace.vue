@@ -3,16 +3,16 @@
     <header class="workspace-header">
       <div>
         <div class="eyebrow">KNOWLEDGE WORKSPACE</div>
-        <h1>知识图谱</h1>
+        <h1>{{ t('knowledgeGraph') }}</h1>
         <p>
           {{ selectedVaultPaths.length }} /
-          {{ graphStore.vaults.length }} 个知识库 ·
-          {{ selectedNoteCount }} 个文档 · {{ selectedLinkCount }} 条关系
+          {{ graphStore.vaults.length }} {{ t('knowledgeBaseCount') }} ·
+          {{ selectedNoteCount }} {{ t('documents') }} · {{ selectedLinkCount }} {{ t('connections') }}
         </p>
         <div
           v-if="graphStore.vaults.length"
           class="vault-selector"
-          aria-label="选择知识库"
+          :aria-label="t('knowledgeBase')"
         >
           <label
             v-for="vault in graphStore.vaults"
@@ -30,16 +30,16 @@
       </div>
       <div class="workspace-actions">
         <span class="index-state" :class="{ loading: graphStore.loading }">
-          {{ graphStore.loading ? "正在索引" : "索引已完成" }}
+          {{ graphStore.loading ? t('indexingNow') : t('indexComplete') }}
         </span>
         <button
           class="secondary-button"
           :disabled="graphStore.loading"
           @click="refreshGraph"
         >
-          {{ graphStore.loading ? "索引中…" : "刷新图谱" }}
+          {{ graphStore.loading ? t('indexing') : t('refreshGraph') }}
         </button>
-        <button class="primary-button" @click="openExplorer">返回知识库</button>
+        <button class="primary-button" @click="openExplorer">{{ t('backToKnowledgeBase') }}</button>
       </div>
     </header>
 
@@ -53,25 +53,25 @@
       </div>
       <aside class="node-details" :class="{ empty: !selectedNode }">
         <template v-if="selectedNode">
-          <div class="details-eyebrow">当前节点</div>
+          <div class="details-eyebrow">{{ t('currentNode') }}</div>
           <h2>{{ selectedNode.name }}</h2>
           <div class="details-type">{{ nodeTypeLabel }}</div>
           <p v-if="selectedNode.relativePath" class="details-path">
             {{ selectedNode.relativePath }}
           </p>
           <div class="details-stats">
-            <span>入链 {{ incomingLinks.length }}</span>
-            <span>出链 {{ outgoingLinks.length }}</span>
+            <span>{{ t('incomingLinks') }} {{ incomingLinks.length }}</span>
+            <span>{{ t('outgoingLinks') }} {{ outgoingLinks.length }}</span>
           </div>
           <button
             v-if="selectedNode.path"
             class="open-document"
             @click="openSelectedDocument"
           >
-            打开文档
+            {{ t('openDocument') }}
           </button>
           <section class="details-section">
-            <h3>反向链接</h3>
+            <h3>{{ t('backlinks') }}</h3>
             <button
               v-for="link in incomingLinks"
               :key="`${link.source}-${link.raw}`"
@@ -81,11 +81,11 @@
               {{ nodeById.get(link.source)?.name || link.source }}
             </button>
             <span v-if="incomingLinks.length === 0" class="details-empty"
-              >暂无反向链接</span
+              >{{ t('noBacklinks') }}</span
             >
           </section>
           <section class="details-section">
-            <h3>关联下级</h3>
+            <h3>{{ t('relatedChildren') }}</h3>
             <button
               v-for="link in outgoingLinks"
               :key="`${link.target}-${link.type}-${link.raw}`"
@@ -96,49 +96,49 @@
               {{ nodeById.get(link.target)?.name || link.target }}
             </button>
             <span v-if="outgoingLinks.length === 0" class="details-empty"
-              >暂无关联下级</span
+              >{{ t('noDocumentConnections') }}</span
             >
           </section>
         </template>
         <div v-else class="details-placeholder">
-          <strong>节点详情</strong>
-          <span>点击图谱节点查看路径、关系和打开入口</span>
+          <strong>{{ t('nodeDetails') }}</strong>
+          <span>{{ t('nodeDetailsHint') }}</span>
         </div>
       </aside>
     </section>
 
     <section class="bottom-panel secondary-panel">
-      <div class="secondary-panel-title">连接关系与缺失连接</div>
-      <nav class="bottom-tabs" aria-label="图谱辅助信息">
+      <div class="secondary-panel-title">{{ t('documentConnections') }} & {{ t('missingLinks') }}</div>
+      <nav class="bottom-tabs" :aria-label="t('graphAuxiliaryInfo')">
         <button
           :class="{ active: bottomTab === 'missing' }"
           @click="bottomTab = 'missing'"
         >
-          缺失链接 {{ missingNodes.length }}
+          {{ t('missingLinks') }} {{ missingNodes.length }}
         </button>
         <button
           :class="{ active: bottomTab === 'backlinks' }"
           @click="bottomTab = 'backlinks'"
         >
-          反向链接
+          {{ t('backlinks') }}
         </button>
         <button
           :class="{ active: bottomTab === 'notes' }"
           @click="bottomTab = 'notes'"
         >
-          文档列表
+          {{ t('documentList') }}
         </button>
         <button
           :class="{ active: bottomTab === 'logs' }"
           @click="bottomTab = 'logs'"
         >
-          索引日志
+          {{ t('indexLogs') }}
         </button>
       </nav>
       <div class="bottom-content">
         <template v-if="bottomTab === 'missing'">
           <span v-if="missingNodes.length === 0" class="bottom-empty"
-            >暂无缺失链接</span
+            >{{ t('noMissingLinks') }}</span
           >
           <button
             v-for="node in missingNodes.slice(0, 12)"
@@ -151,7 +151,7 @@
         </template>
         <template v-else-if="bottomTab === 'backlinks'">
           <span v-if="incomingLinks.length === 0" class="bottom-empty"
-            >请选择节点查看反向链接</span
+            >{{ t('selectNodeForBacklinks') }}</span
           >
           <button
             v-for="link in incomingLinks.slice(0, 12)"
@@ -173,15 +173,11 @@
           </button>
         </template>
         <template v-else>
-          <span class="bottom-empty">最近索引：{{ indexedTimeText }}</span>
+          <span class="bottom-empty">{{ t('recentlyIndexed') }}{{ indexedTimeText }}</span>
           <span v-if="graphStore.graphData?.indexStats" class="bottom-empty">
-            {{
-              graphStore.graphData.indexStats.mode === "incremental"
-                ? "增量"
-                : "全量"
-            }}索引，耗时
-            {{ graphStore.graphData.indexStats.durationMs }}ms，失败
-            {{ graphStore.graphData.indexStats.failedFiles }} 项
+            {{ graphStore.graphData.indexStats.mode === "incremental" ? t('indexModeIncremental') : t('indexModeFull') }}
+            {{ t('indexDuration') }} {{ graphStore.graphData.indexStats.durationMs }}ms，{{ t('failed') }}
+            {{ graphStore.graphData.indexStats.failedFiles }} {{ t('itemsCount') }}
           </span>
         </template>
       </div>
@@ -199,8 +195,10 @@ import type {
   KnowledgeGraphNode,
   KnowledgeNote,
 } from "./types";
+import { useI18n } from "./composables/useI18n";
 
 const graphStore = useKnowledgeGraphStore();
+const { t } = useI18n();
 const SELECTED_VAULT_PATHS_STORAGE_KEY =
   "cherry_markdown_knowledge_graph_selected_vault_paths";
 
@@ -321,16 +319,16 @@ const missingNodes = computed(() =>
 const noteList = computed(() => selectedGraphData.value?.notes || []);
 const indexedTimeText = computed(() => {
   const indexedAt = graphStore.graphData?.indexedAt;
-  return indexedAt ? new Date(indexedAt).toLocaleString() : "尚未索引";
+  return indexedAt ? new Date(indexedAt).toLocaleString() : t("indexed");
 });
 
 const nodeTypeLabel = computed(() => {
   const labels = {
-    note: "文档",
-    heading: "标题",
-    tag: "标签",
-    keyword: "关键词节点",
-    missing: "缺失节点",
+    note: t('note'),
+    heading: t('heading'),
+    tag: t('tag'),
+    keyword: t('keywordNode'),
+    missing: t('missingNode'),
   };
   return selectedNode.value
     ? labels[selectedNode.value.category || "note"]
@@ -339,13 +337,13 @@ const nodeTypeLabel = computed(() => {
 
 const linkTypeLabel = (type: KnowledgeGraphLink["type"]): string => {
   const labels: Record<KnowledgeGraphLink["type"], string> = {
-    wiki: "Wiki Link",
-    markdown: "Markdown Link",
-    contains: "标题层级",
-    tagged_with: "标签",
-    mentions: "关键词",
-    related_by_keyword: "共享关键词",
-    parent_of: "关键词层级",
+    wiki: t('wikiLink'),
+    markdown: t('markdownLink'),
+    contains: t('containsRelation'),
+    tagged_with: t('tagRelation'),
+    mentions: t('mentionsRelation'),
+    related_by_keyword: t('sharedKeywordRelation'),
+    parent_of: t('keywordHierarchyRelation'),
   };
   return labels[type];
 };

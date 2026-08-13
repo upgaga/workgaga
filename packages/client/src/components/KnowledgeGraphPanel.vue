@@ -1,87 +1,86 @@
 <template>
   <div class="knowledge-graph-panel">
-    <div v-if="graphStore.loading" class="empty-state">正在识别知识图谱...</div>
+    <div v-if="graphStore.loading" class="empty-state">{{ t('graphIndexing') }}</div>
     <div v-else-if="graphStore.error" class="empty-state error">
       {{ graphStore.error }}
     </div>
     <div v-else-if="!graphStore.vaultPath" class="empty-state">
-      请先打开知识库
+      {{ t('openKnowledgeBase') }}
     </div>
     <template v-else>
       <section class="graph-card">
         <div class="graph-heading">
           <div>
-            <div class="graph-label">知识图谱</div>
+            <div class="graph-label">{{ t('knowledgeGraphLabel') }}</div>
             <h4>{{ graphStore.vaultName }}</h4>
           </div>
           <button :disabled="graphStore.loading" @click="refreshGraph">
-            刷新
+            {{ t('refresh') }}
           </button>
         </div>
         <div class="indexed-time">{{ indexedTimeText }}</div>
         <div v-if="graphData?.indexStats" class="index-stats">
           {{
             graphData.indexStats.mode === "incremental"
-              ? "增量索引"
-              : "全量索引"
-          }}： {{ graphData.indexStats.durationMs }}ms， 变化
-          {{ graphData.indexStats.changedFiles }}， 知识库
-          {{ graphStore.vaults.length }} 个，未变化
-          {{ graphData.indexStats.unchangedFiles }}， 删除
-          {{ graphData.indexStats.deletedFiles }}，失败
+              ? `${t('indexModeIncremental')}${t('indexDuration')}`
+              : `${t('indexModeFull')}${t('indexDuration')}`
+          }}： {{ graphData.indexStats.durationMs }}ms， {{ t('changed') }}
+          {{ graphData.indexStats.changedFiles }}， {{ t('knowledgeBaseCount') }}
+          {{ graphStore.vaults.length }}，{{ t('unchanged') }}
+          {{ graphData.indexStats.unchangedFiles }}， {{ t('deleted') }}
+          {{ graphData.indexStats.deletedFiles }}，{{ t('failed') }}
           {{ graphData.indexStats.failedFiles }}
         </div>
         <div
           v-if="graphData?.indexStats?.warnings.length"
           class="index-warnings"
         >
-          部分文件未识别：{{ graphData.indexStats.warnings.length }}
-          项
+          {{ t('partialFiles') }}{{ graphData.indexStats.warnings.length }} {{ t('itemsCount') }}
         </div>
         <div class="graph-summary">
           <div class="summary-item">
             <span class="summary-value">{{ graphStore.noteCount }}</span>
-            <span class="summary-label">文档</span>
+            <span class="summary-label">{{ t('documents') }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-value">{{ graphStore.linkCount }}</span>
-            <span class="summary-label">连接</span>
+            <span class="summary-label">{{ t('connections') }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-value">{{ graphStore.missingCount }}</span>
-            <span class="summary-label">缺失</span>
+            <span class="summary-label">{{ t('missing') }}</span>
           </div>
         </div>
       </section>
 
       <section class="graph-section graph-visual-section">
         <div class="section-header">
-          <h4>关系图</h4>
+          <h4>{{ t('relationshipGraph') }}</h4>
           <button
             class="reset-chart-button"
             :disabled="graphStore.loading || !graphData"
             @click="resetChart"
           >
-            重置视图
+            {{ t('resetView') }}
           </button>
         </div>
         <div class="graph-controls">
           <label>
-            布局
+            {{ t('layout') }}
             <select v-model="layoutMode">
-              <option value="hierarchy">分级布局</option>
-              <option value="force">关系布局</option>
+              <option value="hierarchy">{{ t('hierarchyLayout') }}</option>
+              <option value="force">{{ t('forceLayout') }}</option>
             </select>
           </label>
           <label v-if="layoutMode === 'hierarchy'">
-            展示层级
+            {{ t('hierarchyLevel') }}
             <select v-model.number="visibleHierarchyLevel">
               <option
                 v-for="level in hierarchyLevelOptions"
                 :key="level"
                 :value="level"
               >
-                0 - {{ level }} 层
+                0 - {{ level }} {{ t('levels') }}
               </option>
             </select>
           </label>
@@ -90,46 +89,46 @@
             class="text-button"
             @click="expandNextLevel"
           >
-            展开下一层
+            {{ t('expandNextLevel') }}
           </button>
           <button
             v-if="layoutMode === 'hierarchy' && collapsedNodeIds.size"
             class="text-button"
             @click="collapsedNodeIds = new Set()"
           >
-            展开全部分支
+            {{ t('expandAllBranches') }}
           </button>
           <label>
-            关系
+            {{ t('relationship') }}
             <select v-model="selectedLinkType">
-              <option value="all">全部</option>
-              <option value="wiki">Wiki Link</option>
-              <option value="markdown">Markdown Link</option>
-              <option value="contains">标题层级</option>
-              <option value="tagged_with">标签</option>
-              <option value="mentions">关键词</option>
-              <option value="related_by_keyword">共享关键词</option>
-              <option value="parent_of">关键词层级</option>
+              <option value="all">{{ t('all') }}</option>
+              <option value="wiki">{{ t('wikiLink') }}</option>
+              <option value="markdown">{{ t('markdownLink') }}</option>
+              <option value="contains">{{ t('containsRelation') }}</option>
+              <option value="tagged_with">{{ t('tagRelation') }}</option>
+              <option value="mentions">{{ t('mentionsRelation') }}</option>
+              <option value="related_by_keyword">{{ t('sharedKeywordRelation') }}</option>
+              <option value="parent_of">{{ t('keywordHierarchyRelation') }}</option>
             </select>
           </label>
           <label>
-            节点
+            {{ t('node') }}
             <select v-model="selectedCategory">
-              <option value="all">全部</option>
-              <option value="note">文档</option>
-              <option value="heading">标题</option>
-              <option value="tag">标签</option>
-              <option value="keyword">关键词</option>
-              <option value="missing">缺失</option>
+              <option value="all">{{ t('all') }}</option>
+              <option value="note">{{ t('note') }}</option>
+              <option value="heading">{{ t('heading') }}</option>
+              <option value="tag">{{ t('tag') }}</option>
+              <option value="keyword">{{ t('keywordNode') }}</option>
+              <option value="missing">{{ t('missing') }}</option>
             </select>
           </label>
           <label>
-            范围
+            {{ t('scope') }}
             <select v-model.number="neighborhoodDepth">
-              <option :value="0">全图</option>
-              <option :value="1">一跳</option>
-              <option :value="2">两跳</option>
-              <option :value="3">三跳</option>
+              <option :value="0">{{ t('wholeGraph') }}</option>
+              <option :value="1">{{ t('oneHop') }}</option>
+              <option :value="2">{{ t('twoHops') }}</option>
+              <option :value="3">{{ t('threeHops') }}</option>
             </select>
           </label>
           <button
@@ -137,23 +136,23 @@
             class="text-button"
             @click="selectedNodeId = null"
           >
-            取消聚焦
+            {{ t('cancelFocus') }}
           </button>
         </div>
         <div
           ref="chartContainer"
           class="graph-chart"
-          aria-label="知识图谱关系图"
+          :aria-label="t('graphAriaLabel')"
         />
       </section>
 
       <section v-if="props.showSecondaryLists" class="graph-section">
         <div class="section-header">
-          <h4>缺失链接</h4>
-          <span>{{ missingNodes.length }} 项</span>
+          <h4>{{ t('missingLinks') }}</h4>
+          <span>{{ missingNodes.length }} {{ t('itemsCount') }}</span>
         </div>
         <div v-if="missingNodes.length === 0" class="empty-inline">
-          没有发现缺失链接。
+          {{ t('noMissingLinksFound') }}
         </div>
         <ul v-else class="missing-list">
           <li v-for="node in missingNodes" :key="node.id">
@@ -168,11 +167,11 @@
         class="graph-section"
       >
         <div class="section-header">
-          <h4>反向链接</h4>
-          <span>{{ incomingLinks.length }} 条</span>
+          <h4>{{ t('backlinks') }}</h4>
+          <span>{{ incomingLinks.length }} {{ t('linksCount') }}</span>
         </div>
         <div v-if="incomingLinks.length === 0" class="empty-inline">
-          暂无反向链接。
+          {{ t('noBacklinks') }}
         </div>
         <ul v-else class="link-list">
           <li v-for="link in incomingLinks" :key="`${link.source}-${link.raw}`">
@@ -185,11 +184,11 @@
 
       <section v-if="props.showSecondaryLists" class="graph-section">
         <div class="section-header">
-          <h4>连接关系</h4>
-          <span>{{ graphStore.linkCount }} 条</span>
+          <h4>{{ t('documentConnections') }}</h4>
+          <span>{{ graphStore.linkCount }} {{ t('linksCount') }}</span>
         </div>
         <div v-if="linkItems.length === 0" class="empty-inline">
-          暂无文档连接。
+          {{ t('noDocumentConnections') }}
         </div>
         <ul v-else class="link-list">
           <li v-for="link in linkItems" :key="link.key">
@@ -236,6 +235,7 @@ import {
   projectKnowledgeGraphHierarchy,
 } from "../utils/knowledgeGraph";
 import { useKnowledgeGraphStore } from "../store/modal/knowledgeGraph";
+import { useI18n } from "./composables/useI18n";
 
 echarts.use([GraphChart, TooltipComponent, CanvasRenderer]);
 
@@ -252,6 +252,7 @@ const emit = defineEmits<{
 }>();
 
 const graphStore = useKnowledgeGraphStore();
+const { t } = useI18n();
 const graphData = computed(() => props.graphData ?? graphStore.graphData);
 const chartContainer = ref<HTMLDivElement | null>(null);
 const selectedNodeId = ref<string | null>(null);
@@ -276,8 +277,8 @@ const missingNodes = computed(() =>
 );
 
 const indexedTimeText = computed(() => {
-  if (!graphStore.lastIndexedAt) return "尚未完成索引";
-  return `最近索引：${new Date(graphStore.lastIndexedAt).toLocaleString()}`;
+  if (!graphStore.lastIndexedAt) return t("notIndexed");
+  return `${t("recentlyIndexed")}${new Date(graphStore.lastIndexedAt).toLocaleString()}`;
 });
 
 const visibleGraph = computed(() => {
@@ -409,17 +410,17 @@ const chartOption = computed<EChartsOption>(() => {
         if (!data) return "";
         if (item.dataType === "edge") {
           const labels: Partial<Record<KnowledgeGraphLinkType, string>> = {
-            parent_of: "关键词层级",
-            related_by_keyword: "共享关键词",
-            mentions: "关键词引用",
-            tagged_with: "标签引用",
-            contains: "标题层级",
-            wiki: "Wiki Link",
-            markdown: "Markdown Link",
+            parent_of: t('keywordHierarchyRelation'),
+            related_by_keyword: t('sharedKeywordRelation'),
+            mentions: t('keywordReference'),
+            tagged_with: t('tagReference'),
+            contains: t('containsRelation'),
+            wiki: t('wikiLink'),
+            markdown: t('markdownLink'),
           };
-          return `${labels[data.type || "wiki"] || "关系"}<br/>${data.raw || ""}`;
+          return `${labels[data.type || "wiki"] || t('relation')}<br/>${data.raw || ""}`;
         }
-        const status = data.exists === false ? "<br/>状态：缺失" : "";
+        const status = data.exists === false ? `<br/>${t('status')}: ${t('missing')}` : "";
         return `${data.name || ""}<br/>${data.relativePath || ""}${status}`;
       },
     },

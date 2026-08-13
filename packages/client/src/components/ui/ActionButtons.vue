@@ -4,19 +4,22 @@
       <div class="btn-icon">
         <FileIcon :size="16" />
       </div>
-      <span class="btn-text">打开文件</span>
+      <span class="btn-text">{{ t("openFile") }}</span>
     </button>
     <button class="action-btn" @click="$emit('open-directory')">
       <div class="btn-icon">
         <FolderIcon :size="16" />
       </div>
-      <span class="btn-text">打开目录</span>
+      <span class="btn-text">{{ t("openDirectory") }}</span>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { FileIcon, FolderIcon } from '../icons';
+import { useI18n } from '../composables/useI18n';
+
+const { t } = useI18n();
 
 defineEmits<{
   'create-file': [];

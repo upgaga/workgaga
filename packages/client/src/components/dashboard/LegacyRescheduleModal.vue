@@ -3,8 +3,8 @@
     <div class="legacy-modal" @click.stop>
       <div class="legacy-modal__header">
         <div>
-          <p class="legacy-modal__kicker">LEGACY HANDOFF</p>
-          <h3>处理历史遗留</h3>
+          <p class="legacy-modal__kicker">{{ t('legacyHandoff') }}</p>
+          <h3>{{ t('handleLegacy') }}</h3>
         </div>
         <button class="icon-btn" @click="$emit('cancel')">×</button>
       </div>
@@ -12,49 +12,49 @@
       <div class="legacy-modal__body">
         <div class="legacy-summary">
           <strong>{{ todo.content }}</strong>
-          <span>原计划 {{ todo.plannedDate }}</span>
+          <span>{{ t('originalPlanDate') }} {{ todo.plannedDate }}</span>
         </div>
 
         <div class="legacy-grid">
           <label class="form-group">
-            <span>处理方式</span>
+            <span>{{ t('handlingMethod') }}</span>
             <select v-model="carryoverKind" class="select-input">
-              <option value="active_reschedule">主动延期</option>
-              <option value="passive_delay">被动拖延</option>
+              <option value="active_reschedule">{{ t('activeReschedule') }}</option>
+              <option value="passive_delay">{{ t('passiveDelay') }}</option>
             </select>
           </label>
 
           <label class="form-group">
-            <span>下次处理日期</span>
+            <span>{{ t('nextDate') }}</span>
             <input v-model="plannedDate" class="text-input" type="date" />
           </label>
         </div>
 
         <label class="form-group">
-          <span>原因说明</span>
+          <span>{{ t('reasonDescription') }}</span>
           <textarea
             v-model="carryoverReason"
             class="text-input textarea"
             rows="3"
-            placeholder="说明这次为什么没有按原计划完成..."
+            :placeholder="t('reasonPlaceholder')"
           ></textarea>
         </label>
 
         <label class="form-group">
-          <span>阻塞因素（可选）</span>
+          <span>{{ t('blockingFactor') }}</span>
           <textarea
             v-model="blockedReason"
             class="text-input textarea"
             rows="2"
-            placeholder="记录卡住你的外部依赖、信息缺口或环境问题..."
+            :placeholder="t('blockedPlaceholder')"
           ></textarea>
         </label>
       </div>
 
       <div class="legacy-modal__footer">
-        <button class="ghost-btn" @click="$emit('cancel')">取消</button>
+        <button class="ghost-btn" @click="$emit('cancel')">{{ t('cancel') }}</button>
         <button class="primary-btn" :disabled="!plannedDate || !carryoverReason.trim()" @click="submit">
-          保存并重排
+          {{ t('saveAndReschedule') }}
         </button>
       </div>
     </div>
@@ -63,7 +63,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { useI18n } from '../composables/useI18n';
 import type { TodoCarryoverKind, TodoItem } from '../../store/modal/dashboard';
+
+const { t } = useI18n();
 
 export interface LegacyReschedulePayload {
   plannedDate: string;

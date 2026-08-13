@@ -2,7 +2,7 @@
   <div class="directory-node" :class="`depth-${depth}`">
     <!-- 目录项 -->
     <div v-if="node.type === 'directory'" class="directory-item" :class="{ expanded: node.expanded }">
-      <div class="directory-header" @click="toggleDirectory">
+      <div class="directory-header" :title="t('openDirectory')" @click="toggleDirectory">
         <div class="directory-icon">
           <FolderIcon :size="14" :expanded="node.expanded" />
         </div>
@@ -31,6 +31,7 @@
     <div
       v-else
       class="file-item"
+      :title="t('openFile')"
       :class="{ active: node.path === currentFilePath }"
       @click="openFile"
       @contextmenu.prevent="(_event) => $emit('context-menu', _event, node)"
@@ -46,6 +47,7 @@
 <script setup lang="ts">
 import { FileIcon, FolderIcon, ArrowIcon } from './icons';
 import type { DirectoryNode as DirectoryNodeType } from './types';
+import { useI18n } from './composables/useI18n';
 
 // 定义组件属性
 interface Props {
@@ -63,6 +65,7 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+const { t } = useI18n();
 
 // 切换目录展开状态
 const toggleDirectory = () => {

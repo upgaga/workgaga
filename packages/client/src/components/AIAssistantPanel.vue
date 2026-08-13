@@ -2,39 +2,40 @@
   <div class="ai-panel">
     <section class="hero-card">
       <div>
-        <div class="eyebrow">万能 AI</div>
-        <h4>先理解你要推进的事情，再决定是否需要文档、知识库、待办或日程。</h4>
+        <div class="eyebrow">{{ t('universalAI') }}</div>
+        <h4>{{ t('aiPanelDescription') }}</h4>
       </div>
-      <span class="api-pill">OpenAI 未配置</span>
+      <span class="api-pill">{{ t('configureChannelFirst') }}</span>
     </section>
 
     <nav class="tab-bar">
       <button v-for="tab in tabs" :key="tab.id" :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
-        {{ tab.label }}
+        {{ tabLabel(tab.label) }}
       </button>
     </nav>
 
     <section v-if="activeTab === 'chat'" class="tab-content">
       <div class="context-card">
-        <div class="section-title">当前上下文</div>
+        <div class="section-title">{{ t('currentContext') }}</div>
         <div class="context-row">
-          <span>当前文档</span><strong>{{ currentFileName }}</strong>
+          <span>{{ t('currentDocument') }}</span><strong>{{ currentFileName }}</strong>
         </div>
         <div class="context-row">
-          <span>当前知识库</span><strong>{{ knowledgeGraphStore.vaultName || '未打开' }}</strong>
+          <span>{{ t('currentKnowledgeBase') }}</span><strong>{{ knowledgeGraphStore.vaultName || t('notOpen') }}</strong>
         </div>
         <div class="context-grid">
           <div>
-            <strong>{{ knowledgeGraphStore.noteCount }}</strong
-            ><span>文档</span>
+            <strong>{{ knowledgeGraphStore.noteCount }}</strong>
+            <span>{{ t('documents') }}</span>
           </div>
           <div>
-            <strong>{{ knowledgeGraphStore.linkCount }}</strong
-            ><span>连接</span>
+            <strong>{{ knowledgeGraphStore.linkCount }}</strong>
+            <span>{{ t('connection') }}</span>
           </div>
           <div>
             <strong>{{ taskCounts.running }}</strong
-            ><span>进行中</span>
+            ><span>{{ t('inProgress') }}</span>
+
           </div>
         </div>
       </div>
@@ -42,18 +43,18 @@
       <div class="composer-card">
         <textarea
           v-model="userInput"
-          placeholder="告诉 AI 你要推进的事情，例如：准备明天客户沟通、规划一个项目、整理一段想法、生成会议纪要..."
+          :placeholder="t('newTaskPlaceholder')"
         />
         <div class="quick-actions">
           <button v-for="action in quickActions" :key="action" @click="userInput = action">{{ action }}</button>
         </div>
-        <button class="primary-btn" :disabled="!userInput.trim()" @click="createTask">创建 AI 任务</button>
+        <button class="primary-btn" :disabled="!userInput.trim()" @click="createTask">{{ t('createConversation') }}</button>
       </div>
 
       <article v-if="selectedTask" class="task-detail">
         <div class="detail-header">
           <div>
-            <div class="section-title">行动建议</div>
+            <div class="section-title">{{ t('suggestions') }}</div>
             <h4>{{ selectedTask.title }}</h4>
           </div>
           <span class="status" :class="selectedTask.status">{{ statusText(selectedTask.status) }}</span>
@@ -65,43 +66,40 @@
         </div>
         <textarea v-model="selectedTask.prompt" class="prompt-preview" readonly />
         <div class="detail-actions">
-          <button @click="copyText(selectedTask.prompt)">复制 Prompt</button>
+          <button @click="copyText(selectedTask.prompt)">{{ t('copy') }}</button>
           <button
             @click="
               aiStore.updateTask(selectedTask.id, {
                 status: 'running',
-                progressText: '任务已标记为执行中。等待外部 AI 或后续真实 API 返回结果。',
+                progressText: t('taskMarkedRunning'),
               })
             "
           >
-            标记执行中
+            {{ t('markRunning') }}
           </button>
           <button
             @click="
               aiStore.updateTask(selectedTask.id, {
                 status: 'completed',
-                progressText: '任务已完成，可将结果保存为文档、待办、日程或知识沉淀。',
+                progressText: t('taskMarkedCompleted'),
               })
             "
           >
-            标记完成
+            {{ t('markCompleted') }}
           </button>
         </div>
         <div class="result-actions">
-          <button>保存为文档</button>
-          <button>提取待办</button>
-          <button>提取日程</button>
-          <button>建议加入知识库</button>
+          <button>{{ t('saveAsDocument') }}</button>
+          <button>{{ t('extractTodo') }}</button>
+          <button>{{ t('extractSchedule') }}</button>
+          <button>{{ t('suggestKnowledge') }}</button>
         </div>
       </article>
     </section>
 
     <section v-else-if="activeTab === 'tasks'" class="tab-content">
       <div class="summary-card">
-        <strong>{{ taskCounts.total }}</strong> 个任务：{{ taskCounts.running }} 进行中，{{
-          taskCounts.pending
-        }}
-        待处理，{{ taskCounts.completed }} 已完成
+        {{ taskSummary }}
       </div>
       <ul class="list">
         <li v-for="task in sortedTasks" :key="task.id" class="list-item">
@@ -116,94 +114,92 @@
             <span>{{ categoryText(task.category) }} · {{ task.progressText }}</span>
           </button>
           <span class="status" :class="task.status">{{ statusText(task.status) }}</span>
-          <button class="danger" @click="aiStore.deleteTask(task.id)">删除</button>
+          <button class="danger" @click="aiStore.deleteTask(task.id)">{{ t('delete') }}</button>
         </li>
       </ul>
     </section>
 
     <section v-else-if="activeTab === 'skills'" class="tab-content">
-      <div class="section-title">Skill 管理</div>
-      <p class="muted">Skill 是万能 AI 可调用的能力模板，不直接绑定知识库或日程；是否沉淀由 AI 根据任务判断。</p>
+      <div class="section-title">{{ t('skillManagement') }}</div>
+      <p class="muted">{{ t('skillManagementDescription') }}</p>
       <form class="inline-form" @submit.prevent="addSkill">
-        <input v-model="newSkillName" placeholder="新 Skill 名称" />
-        <button :disabled="!newSkillName.trim()">新增</button>
+        <input v-model="newSkillName" :placeholder="t('newSkillName')" />
+        <button :disabled="!newSkillName.trim()">{{ t('add') }}</button>
       </form>
       <ul class="list">
         <li v-for="skill in aiStore.skills" :key="skill.id" class="list-item vertical">
           <div class="item-heading">
             <strong>{{ skill.name }}</strong>
             <label
-              ><input type="checkbox" :checked="skill.enabled" @change="onToggleSkill(skill.id, $event)" /> 启用</label
+              ><input type="checkbox" :checked="skill.enabled" @change="onToggleSkill(skill.id, $event)" /> {{ t('enable') }}</label
             >
           </div>
           <span>{{ skill.description }}</span>
           <small>{{ skill.whenToUse }}</small>
           <div class="chips">
             <span>{{ categoryText(skill.category) }}</span>
-            <span v-if="skill.outputPolicy.mayCreateDocument">可产出文档</span>
-            <span v-if="skill.outputPolicy.mayCreateTodo">可产出待办</span>
-            <span v-if="skill.outputPolicy.mayCreateSchedule">可产生日程</span>
-            <span v-if="skill.outputPolicy.mayUpdateKnowledgeBase">可建议知识沉淀</span>
+            <span v-if="skill.outputPolicy.mayCreateDocument">{{ t('mayCreateDocument') }}</span>
+            <span v-if="skill.outputPolicy.mayCreateTodo">{{ t('mayCreateTodo') }}</span>
+            <span v-if="skill.outputPolicy.mayCreateSchedule">{{ t('mayCreateSchedule') }}</span>
+            <span v-if="skill.outputPolicy.mayUpdateKnowledgeBase">{{ t('maySuggestKnowledge') }}</span>
           </div>
         </li>
       </ul>
     </section>
 
     <section v-else-if="activeTab === 'agents'" class="tab-content">
-      <div class="section-title">Agent 管理</div>
-      <p class="muted">Agent 是后台专业执行者，普通用户默认只面对万能 AI。复杂任务由万能 AI 判断是否调用专业 Agent。</p>
+      <div class="section-title">{{ t('agentManagement') }}</div>
+      <p class="muted">{{ t('agentManagementDescription') }}</p>
       <form class="inline-form" @submit.prevent="addAgent">
-        <input v-model="newAgentName" placeholder="新 Agent 名称" />
-        <button :disabled="!newAgentName.trim()">新增</button>
+        <input v-model="newAgentName" :placeholder="t('newAgentName')" />
+        <button :disabled="!newAgentName.trim()">{{ t('add') }}</button>
       </form>
       <ul class="list">
         <li v-for="agent in aiStore.agents" :key="agent.id" class="list-item vertical">
           <div class="item-heading">
             <strong>{{ agent.name }}</strong>
-            <label
-              ><input type="checkbox" :checked="agent.enabled" @change="onToggleAgent(agent.id, $event)" /> 启用</label
-            >
+            <label><input type="checkbox" :checked="agent.enabled" @change="onToggleAgent(agent.id, $event)" /> {{ t('enable') }}</label>
           </div>
           <span>{{ agent.description }}</span>
           <small>{{ agent.whenToUse }}</small>
           <div class="chips">
             <span>{{ agent.permissionMode }}</span>
             <span>{{ agent.runMode }}</span>
-            <span>调用 {{ agent.usageCount }} 次</span>
+            <span>{{ usageCountText(agent.usageCount) }}</span>
           </div>
         </li>
       </ul>
     </section>
 
     <section v-else class="tab-content">
-      <div class="section-title">设置</div>
+      <div class="section-title">{{ t('settings') }}</div>
       <label class="setting-row"
         ><input v-model="settings.forceReadOnlyMode" type="checkbox" @change="updateSettings" />
-        仅查询模式（只读，禁止写入）</label
+        {{ t('readOnlyMode') }}</label
       >
       <label class="setting-row"
         ><input v-model="settings.requireConfirmBeforeWrite" type="checkbox" @change="updateSettings" />
-        写入前必须确认</label
+        {{ t('requireWriteConfirm') }}</label
       >
       <label class="setting-row"
         ><input v-model="settings.suggestDocuments" type="checkbox" @change="updateSettings" />
-        识别到正式内容时建议保存文档</label
+        {{ t('suggestDocuments') }}</label
       >
       <label class="setting-row"
         ><input v-model="settings.suggestTodos" type="checkbox" @change="updateSettings" />
-        识别行动项时建议生成待办</label
+        {{ t('suggestTodos') }}</label
       >
       <label class="setting-row"
         ><input v-model="settings.suggestSchedules" type="checkbox" @change="updateSettings" />
-        识别时间信息时建议加入日程</label
+        {{ t('suggestSchedules') }}</label
       >
       <label class="setting-row"
         ><input v-model="settings.suggestKnowledge" type="checkbox" @change="updateSettings" />
-        识别长期价值时建议加入知识库</label
+        {{ t('suggestKnowledge') }}</label
       >
       <div class="setting-row column">
-        <span>默认输出目录</span>
-        <input v-model="settings.defaultOutputDirectory" @change="updateSettings" />
+        <label for="default-output-directory">{{ t('defaultOutputDirectory') }}</label>
+        <input id="default-output-directory" v-model="settings.defaultOutputDirectory" @change="updateSettings" />
       </div>
     </section>
   </div>
@@ -212,19 +208,23 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import { useAIAssistantStore, useFileStore, useKnowledgeGraphStore } from '../store';
+import { useI18n } from './composables/useI18n';
 import type { AIAgent, AICategory, AIOutputKind, AISkill, AITaskStatus } from '../store/modal/aiAssistant';
-
+const { t } = useI18n();
 const aiStore = useAIAssistantStore();
 const fileStore = useFileStore();
 const knowledgeGraphStore = useKnowledgeGraphStore();
 
 const tabs = [
-  { id: 'chat', label: '对话' },
-  { id: 'tasks', label: '任务' },
-  { id: 'skills', label: 'Skill' },
-  { id: 'agents', label: 'Agent' },
-  { id: 'settings', label: '设置' },
+  { id: 'chat', label: 'chat' },
+  { id: 'tasks', label: 'task' },
+  { id: 'skills', label: 'skill' },
+  { id: 'agents', label: 'agent' },
+  { id: 'settings', label: 'settings' },
 ] as const;
+
+const tabLabel = (label: (typeof tabs)[number]['label']): string =>
+  t(`aiTab${label[0].toUpperCase()}${label.slice(1)}` as any);
 
 type TabId = (typeof tabs)[number]['id'];
 
@@ -235,13 +235,21 @@ const newSkillName = ref('');
 const newAgentName = ref('');
 const settings = reactive({ ...aiStore.settings });
 
-const quickActions = ['帮我规划这个项目', '把这段想法整理成文档', '从会议记录提取行动项', '准备明天的沟通提纲'];
+const quickActions = [t('planProject'), t('organizeDocument'), t('extractActions'), t('prepareBrief')];
 const sortedTasks = computed(() => aiStore.sortedTasks);
 const taskCounts = computed(() => aiStore.taskCounts);
+const taskSummary = computed(() =>
+  t('taskSummary')
+    .replace('{total}', String(taskCounts.value.total))
+    .replace('{running}', String(taskCounts.value.running))
+    .replace('{pending}', String(taskCounts.value.pending))
+    .replace('{completed}', String(taskCounts.value.completed)),
+);
+const usageCountText = (count: number): string => t('usageCountSummary').replace('{count}', String(count));
 const selectedTask = computed(
   () => aiStore.tasks.find((task) => task.id === selectedTaskId.value) || aiStore.tasks[0] || null,
 );
-const currentFileName = computed(() => fileStore.currentFilePath?.split(/[\\/]/).pop() || '未打开');
+const currentFileName = computed(() => fileStore.currentFilePath?.split(/[\\/]/).pop() || t('noOpen'));
 
 const createTask = (): void => {
   const task = aiStore.createTask(userInput.value.trim());
@@ -316,29 +324,29 @@ const updateSettings = (): void => {
 
 const statusText = (status: AITaskStatus): string =>
   ({
-    pending: '待处理',
-    running: '进行中',
-    completed: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
+    pending: t('taskPending'),
+    running: t('taskRunning'),
+    completed: t('taskCompleted'),
+    failed: t('taskFailed'),
+    cancelled: t('taskCancelled'),
   })[status];
 
 const categoryText = (category: AICategory): string =>
   ({
-    general: '通用',
-    writing: '写作',
-    research: '研究',
-    planning: '规划',
-    organizing: '整理',
-    automation: '自动化',
+    general: t('categoryGeneral'),
+    writing: t('categoryWriting'),
+    research: t('categoryResearch'),
+    planning: t('categoryPlanning'),
+    organizing: t('categoryOrganizing'),
+    automation: t('categoryAutomation'),
   })[category];
 
 const outputKindText = (kind: AIOutputKind): string =>
   ({
-    document: '可能生成文档',
-    todo: '可能生成待办',
-    schedule: '可能生成日程',
-    knowledge: '可能沉淀知识',
+    document: t('possibleDocument'),
+    todo: t('possibleTodo'),
+    schedule: t('possibleSchedule'),
+    knowledge: t('possibleKnowledge'),
   })[kind];
 </script>
 

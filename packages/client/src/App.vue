@@ -46,9 +46,11 @@ import { notifyError, notifySuccess } from "./utils/notifications";
 import { MESSAGES, DIALOGS } from "./constants/i18n";
 import { WINDOW_EVENTS } from "./constants/events";
 import { registerLocalKeywordModel } from "./utils/registerLocalKeywordModel";
+import { useI18n } from "./components/composables/useI18n";
 
 // 响应式数据
 let workgaga: ReturnType<typeof cherryInstance> | null = null;
+const { t } = useI18n();
 const fileStore = useFileStore();
 const aiAssistantStore = useAIAssistantStore();
 const knowledgeGraphStore = useKnowledgeGraphStore();
@@ -464,7 +466,7 @@ const openFile = async (): Promise<FileOperationResult> => {
 
     return { success: true, path };
   } catch (error) {
-    const message = `${MESSAGES.FILE.OPEN_FAILED}: ${error instanceof Error ? error.message : MESSAGES.UNKNOWN_ERROR}`;
+    const message = `${t("openFileFailed")} ${error instanceof Error ? error.message : t("unknownError")}`;
     notifyError(message);
     return {
       success: false,
@@ -484,7 +486,7 @@ const markdownWithKeywords = (markdown: string): string => {
 
 const saveAsNewMarkdown = async (): Promise<FileOperationResult> => {
   if (isLoading.value)
-    return { success: false, error: MESSAGES.FILE.USER_CANCELLED };
+    return { success: false, error: t("cancelledOperation") };
   isLoading.value = true;
   try {
     const editor = await ensureEditorReady();
@@ -500,7 +502,7 @@ const saveAsNewMarkdown = async (): Promise<FileOperationResult> => {
     });
 
     if (!path) {
-      return { success: false, error: MESSAGES.FILE.USER_CANCELLED_SAVE };
+      return { success: false, error: t("cancelledSave") };
     }
 
     await writeTextFile(path, markdown);
@@ -513,7 +515,7 @@ const saveAsNewMarkdown = async (): Promise<FileOperationResult> => {
     hasUnsavedChanges = false;
     await updateTitle(path, false);
     refreshKnowledgeGraphIfNeeded(path);
-    notifySuccess(MESSAGES.FILE.SAVE_AS_SUCCESS);
+    notifySuccess(t("saveAsSuccess"));
 
     return { success: true, path };
   } catch (error) {
@@ -561,7 +563,7 @@ const saveMarkdown = async (): Promise<FileOperationResult> => {
     hasUnsavedChanges = false;
     await updateTitle(targetPath, false);
     refreshKnowledgeGraphIfNeeded(targetPath);
-    notifySuccess(MESSAGES.FILE.SAVE_SUCCESS);
+    notifySuccess(t("saveSuccess"));
     return { success: true, path: targetPath };
   } catch (error) {
     const message = `${MESSAGES.FILE.SAVE_FAILED}: ${error instanceof Error ? error.message : MESSAGES.UNKNOWN_ERROR}`;
@@ -711,7 +713,7 @@ const handleOpenFileFromSidebar = async (
 const handleSaveFromToolbar = async (): Promise<void> => {
   const result = await saveMarkdown();
   if (!result.success && result.error) {
-    notifyError(`${MESSAGES.FILE.SAVE_FAILED}: ${result.error}`);
+    notifyError(`${t("saveFailed")} ${result.error}`);
   }
 };
 
@@ -729,7 +731,7 @@ const renameKnowledgeBaseDocument = async (
 
   const safeName = sanitizeFileName(name);
   if (!safeName) {
-    notifyError("文档名称不能为空");
+    notifyError(t("documentNameRequired"));
     return;
   }
 
@@ -757,7 +759,7 @@ const renameKnowledgeBaseDocument = async (
       }),
     );
     refreshKnowledgeGraphIfNeeded(targetPath);
-    notifySuccess("文档已重命名");
+    notifySuccess(t("documentRenamed"));
   } catch (error) {
     notifyError(
       `重命名文档失败：${error instanceof Error ? error.message : String(error)}`,
